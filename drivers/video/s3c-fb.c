@@ -75,6 +75,9 @@
 #undef  CHECK_BANDWIDTH
 #define MAX_BW_PER_WINDOW	(800 * 1280 * 4 * 60)
 
+/* disable blank */
+#define ENABLE_FB_BLANK		0
+
 struct s3c_fb;
 extern struct ion_device *exynos_ion_dev;
 
@@ -1094,8 +1097,8 @@ static int s3c_fb_blank(int blank_mode, struct fb_info *info)
 
 	dev_dbg(sfb->dev, "blank mode %d\n", blank_mode);
 
-
 	switch (blank_mode) {
+#if ENABLE_FB_BLANK
 	case FB_BLANK_POWERDOWN:
 		sfb->enabled &= ~(1 << index);
 	case FB_BLANK_NORMAL:
@@ -1110,6 +1113,7 @@ static int s3c_fb_blank(int blank_mode, struct fb_info *info)
 		s3c_fb_enable(sfb, 1);
 		sfb->enabled |= (1 << index);
 		break;
+#endif
 
 	case FB_BLANK_VSYNC_SUSPEND:
 	case FB_BLANK_HSYNC_SUSPEND:
@@ -2348,6 +2352,11 @@ static int __devinit s3c_fb_alloc_memory(struct s3c_fb *sfb,
 	if (!ret)
 		goto err_map;
 	map_dma = win->dma_buf_data.dma_addr;
+
+#if defined(CONFIG_FRAMEBUFFER_CONSOLE)
+	fbi->screen_base = ion_map_kernel(sfb->fb_ion_client,
+			win->dma_buf_data.ion_handle);
+#endif
 #else
 	fbi->screen_base = dma_alloc_writecombine(sfb->dev, size,
 			&map_dma, GFP_KERNEL);

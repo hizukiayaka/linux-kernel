@@ -399,6 +399,7 @@ static int s3c_adc_probe(struct platform_device *pdev)
 	struct adc_device *adc;
 	struct s3c_adc_platdata *pdata;
 	struct resource *regs;
+	struct clk *phy_clk;
 	enum s3c_cpu_type cpu = platform_get_device_id(pdev)->driver_data;
 	int ret;
 	unsigned tmp;
@@ -434,7 +435,17 @@ static int s3c_adc_probe(struct platform_device *pdev)
 		goto err_reg;
 	}
 
-	adc->clk = clk_get(dev, "adc");
+	phy_clk = clk_get(NULL, "adcphy");
+	if (IS_ERR(phy_clk)) {
+		dev_err(dev, "failed to get adcphy clock\n");
+		ret = PTR_ERR(phy_clk);
+		goto err_irq;
+	}
+
+	clk_enable(phy_clk);
+	clk_put(phy_clk);
+
+	adc->clk = clk_get(dev, "fsys_adc");
 	if (IS_ERR(adc->clk)) {
 		dev_err(dev, "failed to get adc clock\n");
 		ret = PTR_ERR(adc->clk);

@@ -23,7 +23,7 @@ static struct s3cfb_lcd wxga_hd700 = {
 	.height = 1280,
 	.p_width = 94,
 	.p_height = 151,
-	.bpp = 32,
+	.bpp = 24,
 	.freq = 60,
 
 	.timing = {
@@ -49,7 +49,7 @@ static struct s3cfb_lcd wvga_s70 = {
 	.height = 480,
 	.p_width = 155,
 	.p_height = 93,
-	.bpp = 32,
+	.bpp = 24,
 	.freq = 63,
 
 	.timing = {
@@ -75,7 +75,7 @@ static struct s3cfb_lcd wvga_w50 = {
 	.height = 480,
 	.p_width = 108,
 	.p_height = 64,
-	.bpp = 32,
+	.bpp = 24,
 	.freq = 70,
 
 	.timing = {
@@ -101,21 +101,21 @@ static struct s3cfb_lcd wsvga_w101 = {
 	.height = 600,
 	.p_width = 204,
 	.p_height = 120,
-	.bpp = 32,
+	.bpp = 24,
 	.freq = 60,
 
 	.timing = {
 		.h_fp = 40,
 		.h_bp = 40,
-		.h_sw = 120,
-		.v_fp = 10,
+		.h_sw = 200,
+		.v_fp =  8,
 		.v_fpe = 1,
-		.v_bp = 10,
+		.v_bp =  8,
 		.v_bpe = 1,
-		.v_sw = 12,
+		.v_sw = 16,
 	},
 	.polarity = {
-		.rise_vclk = 0,
+		.rise_vclk = 1,
 		.inv_hsync = 1,
 		.inv_vsync = 1,
 		.inv_vden = 0,
@@ -127,7 +127,7 @@ static struct s3cfb_lcd xga_a97 = {
 	.height = 768,
 	.p_width = 200,
 	.p_height = 150,
-	.bpp = 32,
+	.bpp = 24,
 	.freq = 61,
 
 	.timing = {
@@ -154,7 +154,7 @@ static struct s3cfb_lcd hdmi_def = {
 	.height = 1080,
 	.p_width = 480,
 	.p_height = 320,
-	.bpp = 32,
+	.bpp = 24,
 	.freq = 60,
 
 	.timing = {
@@ -183,13 +183,19 @@ static struct hdmi_config {
 	{ "HDMI1080P60",	1920, 1080 },
 	{ "HDMI1080I60",	1920, 1080 },
 	{ "HDMI1080P30",	1920, 1080 },
+	{ "HDMI1080P50",	1920, 1080 },
+	{ "HDMI1080I50",	1920, 1080 },
 
 	{ "HDMI1080P60D",	 960,  536 },
 	{ "HDMI1080I60D",	 960,  536 },
 	{ "HDMI1080P30D",	 960,  536 },
+	{ "HDMI1080P50D",	 960,  536 },
+	{ "HDMI1080I50D",	 960,  536 },
 
 	{ "HDMI720P60",		1280,  720 },
 	{ "HDMI720P60D",	 640,  360 },
+	{ "HDMI720P50",		1280,  720 },
+	{ "HDMI720P50D",	 640,  360 },
 
 	{ "HDMI576P16X9",	 720,  576 },
 	{ "HDMI576P16X9D",	 720,  576 },
@@ -214,7 +220,7 @@ static struct {
 	{ "HD700",	&wxga_hd700, 1 },
 	{ "S70",	&wvga_s70,   1 },
 	{ "W50",	&wvga_w50,   0 },
-	{ "W101",	&wsvga_w101, 0 },
+	{ "W101",	&wsvga_w101, 1 },
 	{ "A97",	&xga_a97,    0 },
 	{ "HDM",	&hdmi_def,   0 },	/* Pls keep it at last */
 };
@@ -292,6 +298,8 @@ static int __init tiny4412_init_ctp(char *str)
 
 	if (val < CTP_MAX && tiny4412_lcd_config[lcd_idx].ctp) {
 		ctp_type = val;
+	} else if (val == CTP_NONE) {
+		ctp_type = CTP_NONE;
 	}
 
 	return 1;

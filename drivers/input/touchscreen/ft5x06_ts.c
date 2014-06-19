@@ -39,8 +39,9 @@
 
 #include "ft5x06_ts.h"
 
-/* NOTE: support mulititouch only */
+#ifndef CONFIG_TOUCHSCREEN_FT5X0X_SINGLE
 #define CONFIG_FT5X0X_MULTITOUCH		1
+#endif
 
 #define TOUCH_MAX_X						0x700
 #define TOUCH_MAX_Y						0x400
@@ -447,6 +448,7 @@ static int ft5x0x_ts_probe(struct i2c_client *client, const struct i2c_device_id
 #endif
 
 	input_dev->name = FT5X0X_NAME;
+	input_dev->phys = "input(mt)";
 	input_dev->id.bustype = BUS_I2C;
 	input_dev->id.vendor = 0x12FA;
 	input_dev->id.product = 0x2143;
