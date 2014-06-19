@@ -124,6 +124,16 @@ IS_SAMSUNG_CPU(exynos5250, EXYNOS5250_SOC_ID, EXYNOS5_SOC_MASK)
 #define EXYNOS4210_REV_1_0	(0x10)
 #define EXYNOS4210_REV_1_1	(0x11)
 
+#define EXYNOS4412_REV_0       (0x0)
+#define EXYNOS4412_REV_0_1     (0x01)
+#define EXYNOS4412_REV_1_0     (0x10)
+#define EXYNOS4412_REV_1_1     (0x11)
+#define EXYNOS4412_REV_2_0     (0x20)
+#define EXYNOS4412_REV_BIN_1GHz        (0x02)
+
+#define EXYNOS4412_PACK_POP     (0x2)
+#define EXYNOS4412_PACK_SCP     (0x0)
+
 #if defined(CONFIG_SOC_EXYNOS5250)
 # define soc_is_exynos5250()	is_samsung_exynos5250()
 #else
@@ -132,8 +142,12 @@ IS_SAMSUNG_CPU(exynos5250, EXYNOS5250_SOC_ID, EXYNOS5_SOC_MASK)
 
 #define IODESC_ENT(x) { (unsigned long)S3C24XX_VA_##x, __phys_to_pfn(S3C24XX_PA_##x), S3C24XX_SZ_##x, MT_DEVICE }
 
+#ifndef KHZ
+#define KHZ (1000)
+#endif
+
 #ifndef MHZ
-#define MHZ (1000*1000)
+#define MHZ (KHZ*KHZ)
 #endif
 
 #define print_mhz(m) ((m) / MHZ), (((m) / 1000) % 1000)
@@ -171,6 +185,7 @@ extern void s3c64xx_init_cpu(void);
 extern void s5p_init_cpu(void __iomem *cpuid_addr);
 
 extern unsigned int samsung_rev(void);
+extern unsigned int samsung_pack(void);
 
 extern void s3c24xx_init_uarts(struct s3c2410_uartcfg *cfg, int no);
 

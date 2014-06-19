@@ -59,6 +59,15 @@ config LCD_LTV350QV
 
 	  The LTV350QV panel is present on all ATSTK1000 boards.
 
+config LCD_LMS501KF03
+       tristate "LMS501KF03 AMOLED LCD Driver"
+       depends on SPI && BACKLIGHT_CLASS_DEVICE
+       default y
+       help
+         If you have an 5.01" LMS501KF03 AMOLED Panel, say Y to enable its
+         LCD control driver.
+
+
 config LCD_ILI9320
 	tristate
 	help

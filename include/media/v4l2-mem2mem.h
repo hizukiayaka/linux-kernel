@@ -84,6 +84,7 @@ struct v4l2_m2m_ctx {
 struct v4l2_m2m_buffer {
 	struct vb2_buffer	vb;
 	struct list_head	list;
+	struct list_head	wait;
 };
 
 void *v4l2_m2m_get_curr_priv(struct v4l2_m2m_dev *m2m_dev);
@@ -93,6 +94,8 @@ struct vb2_queue *v4l2_m2m_get_vq(struct v4l2_m2m_ctx *m2m_ctx,
 
 void v4l2_m2m_job_finish(struct v4l2_m2m_dev *m2m_dev,
 			 struct v4l2_m2m_ctx *m2m_ctx);
+
+void v4l2_m2m_try_schedule(struct v4l2_m2m_ctx *m2m_ctx);
 
 static inline void
 v4l2_m2m_buf_done(struct vb2_buffer *buf, enum vb2_buffer_state state)
@@ -105,6 +108,9 @@ int v4l2_m2m_reqbufs(struct file *file, struct v4l2_m2m_ctx *m2m_ctx,
 
 int v4l2_m2m_querybuf(struct file *file, struct v4l2_m2m_ctx *m2m_ctx,
 		      struct v4l2_buffer *buf);
+
+int v4l2_m2m_expbuf(struct file *file, struct v4l2_m2m_ctx *m2m_ctx,
+			struct v4l2_exportbuffer *eb);
 
 int v4l2_m2m_qbuf(struct file *file, struct v4l2_m2m_ctx *m2m_ctx,
 		  struct v4l2_buffer *buf);

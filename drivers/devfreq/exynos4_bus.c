@@ -25,24 +25,26 @@
 #include <linux/regulator/consumer.h>
 #include <linux/module.h>
 
-/* Exynos4 ASV has been in the mailing list, but not upstreamed, yet. */
-#ifdef CONFIG_EXYNOS_ASV
-extern unsigned int exynos_result_of_asv;
-#endif
-
+#include <mach/asv.h>
 #include <mach/regs-clock.h>
 
 #include <plat/map-s5p.h>
 
+
 #define MAX_SAFEVOLT	1200000 /* 1.2V */
 
+enum scaling{
+	DISABLE = 0,
+	ENABLE,
+};
 enum exynos4_busf_type {
 	TYPE_BUSF_EXYNOS4210,
 	TYPE_BUSF_EXYNOS4x12,
 };
+struct busfreq_data *drv_data;
 
 /* Assume that the bus is saturated if the utilization is 40% */
-#define BUS_SATURATION_RATIO	40
+#define BUS_SATURATION_RATIO	52
 
 enum ppmu_counter {
 	PPMU_PMNCNT0 = 0,
@@ -89,6 +91,7 @@ struct busfreq_data {
 	/* Dividers calculated at boot/probe-time */
 	unsigned int dmc_divtable[_LV_END]; /* DMC0 */
 	unsigned int top_divtable[_LV_END];
+	int lock_count;
 };
 
 struct bus_opp_table {
@@ -148,7 +151,7 @@ static unsigned int exynos4x12_mif_step_50[][EX4x12_LV_NUM] = {
 	{1050000, 900000, 900000, 900000, 900000}, /* ASV3 */
 	{1050000, 900000, 900000, 900000, 850000}, /* ASV4 */
 	{1050000, 900000, 900000, 850000, 850000}, /* ASV5 */
-	{1050000, 900000, 850000, 850000, 850000}, /* ASV6 */
+	{1050000, 950000, 950000, 950000, 950000}, /* ASV6 */
 	{1050000, 900000, 850000, 850000, 850000}, /* ASV7 */
 	{1050000, 900000, 850000, 850000, 850000}, /* ASV8 */
 };
@@ -157,13 +160,15 @@ static unsigned int exynos4x12_int_volt[][EX4x12_LV_NUM] = {
 	/* 200    160      133     100 */
 	{1000000, 950000, 925000, 900000}, /* ASV0 */
 	{975000,  925000, 925000, 900000}, /* ASV1 */
-	{950000,  925000, 900000, 875000}, /* ASV2 */
-	{950000,  900000, 900000, 875000}, /* ASV3 */
+	{960000,  925000, 900000, 875000}, /* ASV2 */
+	{1000000, 950000, 950000, 950000}, /* ASV3 */
+//	{970000,  900000, 900000, 875000}, /* ASV3 */
 	{925000,  875000, 875000, 875000}, /* ASV4 */
-	{900000,  850000, 850000, 850000}, /* ASV5 */
-	{900000,  850000, 850000, 850000}, /* ASV6 */
-	{900000,  850000, 850000, 850000}, /* ASV7 */
-	{900000,  850000, 850000, 850000}, /* ASV8 */
+	{1000000, 950000, 950000, 950000}, /* ASV5 */
+//	{900000,  850000, 850000, 850000}, /* ASV5 */
+	{1000000, 950000, 950000, 950000}, /* ASV6 */
+	{910000,  850000, 850000, 850000}, /* ASV7 */
+	{920000,  850000, 850000, 850000}, /* ASV8 */
 };
 
 /*** Clock Divider Data for Exynos4210 ***/
@@ -271,11 +276,11 @@ static unsigned int exynos4x12_clkdiv_lr_bus[][2] = {
 	/* ACLK_GDL/R L1: 200MHz */
 	{3, 1},
 	/* ACLK_GDL/R L2: 160MHz */
-	{4, 1},
+	{3, 1},
 	/* ACLK_GDL/R L3: 133MHz */
-	{5, 1},
+	{3, 1},
 	/* ACLK_GDL/R L4: 100MHz */
-	{7, 1},
+	{3, 1},
 };
 static unsigned int exynos4x12_clkdiv_sclkip[][3] = {
 	/*
@@ -288,7 +293,7 @@ static unsigned int exynos4x12_clkdiv_sclkip[][3] = {
 	/* SCLK_MFC: 200MHz */
 	{3, 3, 4},
 	/* SCLK_MFC: 160MHz */
-	{4, 4, 5},
+	{4, 3, 5},
 	/* SCLK_MFC: 133MHz */
 	{5, 5, 5},
 	/* SCLK_MFC: 100MHz */
@@ -459,7 +464,7 @@ static int exynos4x12_set_busclk(struct busfreq_data *data, struct opp *opp)
 	do {
 		tmp = __raw_readl(EXYNOS4_CLKDIV_STAT_RIGHTBUS);
 	} while (tmp & 0x11);
-
+#if 1
 	/* Change Divider - MFC */
 	tmp = __raw_readl(EXYNOS4_CLKDIV_MFC);
 
@@ -473,7 +478,8 @@ static int exynos4x12_set_busclk(struct busfreq_data *data, struct opp *opp)
 	do {
 		tmp = __raw_readl(EXYNOS4_CLKDIV_STAT_MFC);
 	} while (tmp & 0x1);
-
+	
+#endif
 	/* Change Divider - JPEG */
 	tmp = __raw_readl(EXYNOS4_CLKDIV_CAM1);
 
@@ -487,7 +493,7 @@ static int exynos4x12_set_busclk(struct busfreq_data *data, struct opp *opp)
 	do {
 		tmp = __raw_readl(EXYNOS4_CLKDIV_STAT_CAM1);
 	} while (tmp & 0x1);
-
+#if 0
 	/* Change Divider - FIMC0~3 */
 	tmp = __raw_readl(EXYNOS4_CLKDIV_CAM);
 
@@ -508,7 +514,18 @@ static int exynos4x12_set_busclk(struct busfreq_data *data, struct opp *opp)
 	do {
 		tmp = __raw_readl(EXYNOS4_CLKDIV_STAT_CAM1);
 	} while (tmp & 0x1111);
-
+#endif
+#ifdef CONFIG_EXYNOS_ASV
+	if (soc_is_exynos4412() && (exynos4_result_of_asv > 3)) {
+		if (index == LV_4) { /* MIF:100 / INT:100 */
+			exynos4x12_set_abb_member(ABB_INT, ABB_MODE_100V);
+			exynos4x12_set_abb_member(ABB_MIF, ABB_MODE_100V);
+		} else {
+			exynos4x12_set_abb_member(ABB_INT, ABB_MODE_130V);
+			exynos4x12_set_abb_member(ABB_MIF, ABB_MODE_130V);
+		}
+	}
+#endif /* CONFIG_EXYNOS_ASV */
 	return 0;
 }
 
@@ -626,10 +643,17 @@ static int exynos4_bus_target(struct device *dev, unsigned long *_freq,
 	struct platform_device *pdev = container_of(dev, struct platform_device,
 						    dev);
 	struct busfreq_data *data = platform_get_drvdata(pdev);
-	struct opp *opp = devfreq_recommended_opp(dev, _freq, flags);
-	unsigned long freq = opp_get_freq(opp);
-	unsigned long old_freq = opp_get_freq(data->curr_opp);
-
+	struct opp *opp;// = devfreq_recommended_opp(dev, _freq, flags);
+	unsigned long freq;// = opp_get_freq(opp);
+	unsigned long old_freq;// = opp_get_freq(data->curr_opp);
+	
+	if(*_freq > 4000)
+		*_freq=4000;
+	*_freq *=100;
+	opp = devfreq_recommended_opp(dev, _freq, flags);
+	freq = opp_get_freq(opp);
+	old_freq = opp_get_freq(data->curr_opp);
+	
 	if (IS_ERR(opp))
 		return PTR_ERR(opp);
 
@@ -642,9 +666,9 @@ static int exynos4_bus_target(struct device *dev, unsigned long *_freq,
 
 	if (data->disabled)
 		goto out;
-
 	if (old_freq < freq)
 		err = exynos4_bus_setvolt(data, opp, data->curr_opp);
+
 	if (err)
 		goto out;
 
@@ -942,6 +966,7 @@ static int exynos4_busfreq_pm_notifier_event(struct notifier_block *this,
 		mutex_lock(&data->lock);
 
 		data->disabled = true;
+		data->lock_count = 0;
 
 		opp = opp_find_freq_floor(data->dev, &maxfreq);
 
@@ -986,7 +1011,7 @@ static __devinit int exynos4_busfreq_probe(struct platform_device *pdev)
 	struct opp *opp;
 	struct device *dev = &pdev->dev;
 	int err = 0;
-
+	
 	data = kzalloc(sizeof(struct busfreq_data), GFP_KERNEL);
 	if (data == NULL) {
 		dev_err(dev, "Cannot allocate memory.\n");
@@ -997,6 +1022,7 @@ static __devinit int exynos4_busfreq_probe(struct platform_device *pdev)
 	data->dmc[0].hw_base = S5P_VA_DMC0;
 	data->dmc[1].hw_base = S5P_VA_DMC1;
 	data->pm_notifier.notifier_call = exynos4_busfreq_pm_notifier_event;
+	data->lock_count = 0;
 	data->dev = dev;
 	mutex_init(&data->lock);
 
@@ -1058,7 +1084,7 @@ static __devinit int exynos4_busfreq_probe(struct platform_device *pdev)
 		dev_err(dev, "Failed to setup pm notifier\n");
 		goto err_devfreq_add;
 	}
-
+	drv_data = data;
 	return 0;
 err_devfreq_add:
 	devfreq_remove_device(data->devfreq);
@@ -1092,7 +1118,54 @@ static int exynos4_busfreq_resume(struct device *dev)
 	busfreq_mon_reset(data);
 	return 0;
 }
+int exynos4_busfreq_lock(bool action)
+{
+        struct opp *opp;
+	int err = 0;
+	
+	switch (action){
+        case DISABLE:
+                /* Set Fastest and Deactivate DVFS */
+                mutex_lock(&drv_data->lock);
 
+                drv_data->lock_count++;
+		if(drv_data->lock_count>1)
+                        goto unlock;
+                drv_data->disabled = true;
+
+                opp = opp_find_freq_ceil(drv_data->dev, &exynos4_devfreq_profile.initial_freq);
+		err = exynos4_bus_setvolt(drv_data, opp, drv_data->curr_opp);
+                if (err)
+                        goto unlock;
+
+                switch (drv_data->type) {
+                case TYPE_BUSF_EXYNOS4210:
+                        err = exynos4210_set_busclk(drv_data, opp);
+                        break;
+                case TYPE_BUSF_EXYNOS4x12:
+                        err = exynos4x12_set_busclk(drv_data, opp);
+                        break;
+                default:
+                        err = -EINVAL;
+                }
+                if (err)
+                        goto unlock;
+
+                drv_data->curr_opp = opp;
+unlock:
+                mutex_unlock(&drv_data->lock);
+               	break;
+
+	case ENABLE:
+		mutex_lock(&drv_data->lock);
+                drv_data->lock_count--;
+		if(drv_data->lock_count==0)
+                drv_data->disabled = false;
+		mutex_unlock(&drv_data->lock);
+		break;
+	}
+	return err;
+}
 static const struct dev_pm_ops exynos4_busfreq_pm = {
 	.resume	= exynos4_busfreq_resume,
 };

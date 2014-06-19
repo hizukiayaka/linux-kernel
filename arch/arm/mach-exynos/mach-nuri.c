@@ -50,7 +50,6 @@
 #include <plat/gpio-cfg.h>
 #include <plat/iic.h>
 #include <plat/mfc.h>
-#include <plat/pd.h>
 #include <plat/fimc-core.h>
 #include <plat/camport.h>
 #include <plat/mipi_csis.h>
@@ -269,7 +268,7 @@ static struct s3c_fb_platdata nuri_fb_pdata __initdata = {
 
 static void nuri_lcd_power_on(struct plat_lcd_data *pd, unsigned int power)
 {
-	int gpio = EXYNOS4_GPE1(5);
+	int gpio = EXYNOS4210_GPE1(5);
 
 	gpio_request(gpio, "LVDS_nSHDN");
 	gpio_direction_output(gpio, power);
@@ -278,7 +277,7 @@ static void nuri_lcd_power_on(struct plat_lcd_data *pd, unsigned int power)
 
 static int nuri_bl_init(struct device *dev)
 {
-	return gpio_request_one(EXYNOS4_GPE2(3), GPIOF_OUT_INIT_LOW,
+	return gpio_request_one(EXYNOS4210_GPE2(3), GPIOF_OUT_INIT_LOW,
 				"LCD_LD0_EN");
 }
 
@@ -287,14 +286,14 @@ static int nuri_bl_notify(struct device *dev, int brightness)
 	if (brightness < 1)
 		brightness = 0;
 
-	gpio_set_value(EXYNOS4_GPE2(3), 1);
+	gpio_set_value(EXYNOS4210_GPE2(3), 1);
 
 	return brightness;
 }
 
 static void nuri_bl_exit(struct device *dev)
 {
-	gpio_free(EXYNOS4_GPE2(3));
+	gpio_free(EXYNOS4210_GPE2(3));
 }
 
 /* nuri pwm backlight */
@@ -1049,7 +1048,7 @@ static struct max8903_pdata nuri_max8903 = {
 	 */
 	.dok = EXYNOS4_GPX1(4), /* TA_nCONNECTED */
 	/* uok, usus: not connected */
-	.chg = EXYNOS4_GPE2(0), /* TA_nCHG */
+	.chg = EXYNOS4210_GPE2(0), /* TA_nCHG */
 	/* flt: vcc_1.8V_pda */
 	.dcm = EXYNOS4_GPL0(1), /* CURR_ADJ */
 
@@ -1124,7 +1123,7 @@ static struct regulator_init_data cam_vt_cam15_reg_init_data = {
 static struct fixed_voltage_config cam_vt_cam15_fixed_voltage_cfg = {
 	.supply_name	= "VT_CAM_1.5V",
 	.microvolts	= 1500000,
-	.gpio		= EXYNOS4_GPE2(2), /* VT_CAM_1.5V_EN */
+	.gpio		= EXYNOS4210_GPE2(2), /* VT_CAM_1.5V_EN */
 	.enable_high	= 1,
 	.init_data	= &cam_vt_cam15_reg_init_data,
 };
@@ -1148,7 +1147,7 @@ static struct regulator_init_data cam_vdda_reg_init_data = {
 static struct fixed_voltage_config cam_vdda_fixed_voltage_cfg = {
 	.supply_name	= "CAM_IO_EN",
 	.microvolts	= 2800000,
-	.gpio		= EXYNOS4_GPE2(1), /* CAM_IO_EN */
+	.gpio		= EXYNOS4210_GPE2(1), /* CAM_IO_EN */
 	.enable_high	= 1,
 	.init_data	= &cam_vdda_reg_init_data,
 };
@@ -1172,7 +1171,7 @@ static struct regulator_init_data cam_8m_12v_reg_init_data = {
 static struct fixed_voltage_config cam_8m_12v_fixed_voltage_cfg = {
 	.supply_name	= "8M_1.2V",
 	.microvolts	= 1200000,
-	.gpio		= EXYNOS4_GPE2(5), /* 8M_1.2V_EN */
+	.gpio		= EXYNOS4210_GPE2(5), /* 8M_1.2V_EN */
 	.enable_high	= 1,
 	.init_data	= &cam_8m_12v_reg_init_data,
 };

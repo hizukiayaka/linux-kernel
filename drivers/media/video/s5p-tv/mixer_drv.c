@@ -22,6 +22,7 @@
 #include <linux/delay.h>
 #include <linux/pm_runtime.h>
 #include <linux/clk.h>
+#include <mach/sysmmu.h>
 
 MODULE_AUTHOR("Tomasz Stanislawski, <t.stanislaws@samsung.com>");
 MODULE_DESCRIPTION("Samsung MIXER");
@@ -99,7 +100,8 @@ void mxr_streamer_put(struct mxr_device *mdev)
 		mxr_reg_streamoff(mdev);
 		/* vsync applies Mixer setup */
 		ret = mxr_reg_wait4vsync(mdev);
-		WARN(ret, "failed to get vsync (%d) from output\n", ret);
+		if (ret < 0)
+			mxr_warn(mdev, "failed to get vsync (%d) from output\n", ret);
 		ret = v4l2_subdev_call(sd, video, s_stream, 0);
 		WARN(ret, "stopping stream failed for output %s\n", sd->name);
 	}
@@ -136,7 +138,16 @@ void mxr_output_put(struct mxr_device *mdev)
 int mxr_power_get(struct mxr_device *mdev)
 {
 	int ret = pm_runtime_get_sync(mdev->dev);
+	if (ret < 0)
+		goto out;
+	ret = platform_sysmmu_on(mdev->dev);
+	if (ret < 0)
+		goto err_pm;
 
+	goto out;
+err_pm:
+	pm_runtime_put_sync(mdev->dev);
+out:
 	/* returning 1 means that power is already enabled,
 	 * so zero success be returned */
 	if (IS_ERR_VALUE(ret))
@@ -146,6 +157,7 @@ int mxr_power_get(struct mxr_device *mdev)
 
 void mxr_power_put(struct mxr_device *mdev)
 {
+	platform_sysmmu_off(mdev->dev);
 	pm_runtime_put_sync(mdev->dev);
 }
 

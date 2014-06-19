@@ -17,6 +17,8 @@
 #include <linux/delay.h>
 #include <linux/pm.h>
 #include <linux/i2c.h>
+#include <linux/pm_runtime.h>
+#include <linux/slab.h>
 #include <linux/mfd/wm8994/registers.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
@@ -27,6 +29,8 @@
 
 #include "wm8993.h"
 #include "wm_hubs.h"
+
+#define WM_HUBS_DCS_DEV_CAL_COUNT 4
 
 const DECLARE_TLV_DB_SCALE(wm_hubs_spkmix_tlv, -300, 300, 0);
 EXPORT_SYMBOL_GPL(wm_hubs_spkmix_tlv);
@@ -199,15 +203,56 @@ static void wm_hubs_dcs_cache_set(struct snd_soc_codec *codec, u16 dcs_cfg)
 	list_add_tail(&cache->list, &hubs->dcs_cache);
 }
 
+static void wm_hubs_read_dc_servo(struct snd_soc_codec *codec,
+				  u16 *reg_l, u16 *reg_r)
+{
+	struct wm_hubs_data *hubs = snd_soc_codec_get_drvdata(codec);
+	u16 dcs_reg, reg;
+
+	switch (hubs->dcs_readback_mode) {
+	case 2:
+		dcs_reg = WM8994_DC_SERVO_4E;
+		break;
+	case 1:
+		dcs_reg = WM8994_DC_SERVO_READBACK;
+		break;
+	default:
+		dcs_reg = WM8993_DC_SERVO_3;
+		break;
+	}
+
+	/* Different chips in the family support different readback
+	 * methods.
+	 */
+	switch (hubs->dcs_readback_mode) {
+	case 0:
+		*reg_l = snd_soc_read(codec, WM8993_DC_SERVO_READBACK_1)
+			& WM8993_DCS_INTEG_CHAN_0_MASK;
+		*reg_r = snd_soc_read(codec, WM8993_DC_SERVO_READBACK_2)
+			& WM8993_DCS_INTEG_CHAN_1_MASK;
+		break;
+	case 2:
+	case 1:
+		reg = snd_soc_read(codec, dcs_reg);
+		*reg_r = (reg & WM8993_DCS_DAC_WR_VAL_1_MASK)
+			>> WM8993_DCS_DAC_WR_VAL_1_SHIFT;
+		*reg_l = reg & WM8993_DCS_DAC_WR_VAL_0_MASK;
+		break;
+	default:
+		WARN(1, "Unknown DCS readback method\n");
+		return;
+	}
+}
+
 /*
  * Startup calibration of the DC servo
  */
-static void calibrate_dc_servo(struct snd_soc_codec *codec)
+static void enable_dc_servo(struct snd_soc_codec *codec)
 {
 	struct wm_hubs_data *hubs = snd_soc_codec_get_drvdata(codec);
 	struct wm_hubs_dcs_cache *cache;
 	s8 offset;
-	u16 reg, reg_l, reg_r, dcs_cfg, dcs_reg;
+	u16 reg_l, reg_r, dcs_cfg, dcs_reg;
 
 	switch (hubs->dcs_readback_mode) {
 	case 2:
@@ -245,27 +290,7 @@ static void calibrate_dc_servo(struct snd_soc_codec *codec)
 				  WM8993_DCS_TRIG_STARTUP_1);
 	}
 
-	/* Different chips in the family support different readback
-	 * methods.
-	 */
-	switch (hubs->dcs_readback_mode) {
-	case 0:
-		reg_l = snd_soc_read(codec, WM8993_DC_SERVO_READBACK_1)
-			& WM8993_DCS_INTEG_CHAN_0_MASK;
-		reg_r = snd_soc_read(codec, WM8993_DC_SERVO_READBACK_2)
-			& WM8993_DCS_INTEG_CHAN_1_MASK;
-		break;
-	case 2:
-	case 1:
-		reg = snd_soc_read(codec, dcs_reg);
-		reg_r = (reg & WM8993_DCS_DAC_WR_VAL_1_MASK)
-			>> WM8993_DCS_DAC_WR_VAL_1_SHIFT;
-		reg_l = reg & WM8993_DCS_DAC_WR_VAL_0_MASK;
-		break;
-	default:
-		WARN(1, "Unknown DCS readback method\n");
-		return;
-	}
+	wm_hubs_read_dc_servo(codec, &reg_l, &reg_r);
 
 	dev_dbg(codec->dev, "DCS input: %x %x\n", reg_l, reg_r);
 
@@ -302,6 +327,197 @@ static void calibrate_dc_servo(struct snd_soc_codec *codec)
 	if (wm_hubs_dac_hp_direct(codec))
 		wm_hubs_dcs_cache_set(codec, dcs_cfg);
 }
+
+static void wm_hubs_calibrate_dcs(struct snd_soc_codec *codec)
+{
+	struct wm_hubs_data *hubs = snd_soc_codec_get_drvdata(codec);
+	struct wm_hubs_dcs_cache *cache;
+	u16 real[2], dummy[2];
+	int cal_l = 0;
+	int cal_r = 0;
+	int hpvol_l, hpvol_r, mixvol_l, mixvol_r, mixl, mixr;
+	int i;
+
+	if (!hubs->clk_force || hubs->dcs_dev_cal_done || !hubs->jack_empty ||
+	    hubs->no_runtime_dcs)
+		return;
+
+	if (!wm_hubs_dac_hp_direct(codec)) {
+		dev_dbg(codec->dev, "Not a DAC to headphone path\n");
+		return;
+	}
+
+	pm_runtime_get_sync(codec->dev);
+
+	dev_dbg(codec->dev, "Calibrating DC servo\n");
+
+	hubs->clk_force(codec, true);
+
+	hpvol_l = snd_soc_read(codec, WM8993_LEFT_OUTPUT_VOLUME);
+	hpvol_r = snd_soc_read(codec, WM8993_RIGHT_OUTPUT_VOLUME);
+	mixvol_l = snd_soc_read(codec, WM8993_LEFT_OPGA_VOLUME);
+	mixvol_r = snd_soc_read(codec, WM8993_RIGHT_OPGA_VOLUME);
+	mixl = snd_soc_read(codec, WM8993_OUTPUT_MIXER1);
+	mixr = snd_soc_read(codec, WM8993_OUTPUT_MIXER2);
+
+	snd_soc_update_bits(codec, WM8993_LEFT_OUTPUT_VOLUME,
+			    WM8993_HPOUT1L_MUTE_N, 0);
+	snd_soc_update_bits(codec, WM8993_RIGHT_OUTPUT_VOLUME,
+			    WM8993_HPOUT1R_MUTE_N, 0);
+	snd_soc_update_bits(codec, WM8993_LEFT_OPGA_VOLUME,
+			    WM8993_MIXOUTL_MUTE_N, 0);
+	snd_soc_update_bits(codec, WM8993_RIGHT_OPGA_VOLUME,
+			    WM8993_MIXOUTR_MUTE_N, 0);
+	snd_soc_update_bits(codec, WM8993_OUTPUT_MIXER1,
+			    WM8993_DACL_TO_MIXOUTL, WM8993_DACL_TO_MIXOUTL);
+	snd_soc_update_bits(codec, WM8993_OUTPUT_MIXER2,
+			    WM8993_DACR_TO_MIXOUTR, WM8993_DACR_TO_MIXOUTR);
+
+	snd_soc_update_bits(codec, WM8993_CHARGE_PUMP_1,
+			    WM8993_CP_ENA, WM8993_CP_ENA);
+
+	msleep(5);
+
+	snd_soc_update_bits(codec, WM8993_POWER_MANAGEMENT_1,
+			    WM8993_HPOUT1L_ENA | WM8993_HPOUT1R_ENA,
+			    WM8993_HPOUT1L_ENA | WM8993_HPOUT1R_ENA);
+
+	snd_soc_update_bits(codec, WM8993_ANALOGUE_HP_0,
+			    WM8993_HPOUT1L_DLY | WM8993_HPOUT1R_DLY,
+			    WM8993_HPOUT1L_DLY | WM8993_HPOUT1R_DLY);
+
+	for (i = 0; i < WM_HUBS_DCS_DEV_CAL_COUNT; i++) {
+		snd_soc_update_bits(codec, WM8993_ANALOGUE_HP_0,
+				    WM8993_HPOUT1R_OUTP |
+				    WM8993_HPOUT1R_RMV_SHORT |
+				    WM8993_HPOUT1L_OUTP, 0);
+
+		wait_for_dc_servo(codec,
+				  WM8993_DCS_TRIG_STARTUP_0 |
+				  WM8993_DCS_TRIG_STARTUP_1);
+
+		wm_hubs_read_dc_servo(codec, &dummy[0], &dummy[1]);
+
+		snd_soc_write(codec, WM8993_DC_SERVO_0, 0);
+
+		snd_soc_update_bits(codec, WM8993_ANALOGUE_HP_0,
+				    WM8993_HPOUT1R_OUTP |
+				    WM8993_HPOUT1R_RMV_SHORT |
+				    WM8993_HPOUT1L_OUTP |
+				    WM8993_HPOUT1L_RMV_SHORT,
+				    WM8993_HPOUT1R_OUTP |
+				    WM8993_HPOUT1R_RMV_SHORT |
+				    WM8993_HPOUT1L_OUTP |
+				    WM8993_HPOUT1L_RMV_SHORT);
+
+		wait_for_dc_servo(codec,
+				  WM8993_DCS_TRIG_STARTUP_0 |
+				  WM8993_DCS_TRIG_STARTUP_1);
+
+		wm_hubs_read_dc_servo(codec, &real[0], &real[1]);
+
+		snd_soc_write(codec, WM8993_DC_SERVO_0, 0);
+
+		dev_dbg(codec->dev, "Sample %d, %d/%d -> %d/%d\n",
+			i, dummy[0], dummy[1], real[0], real[1]);
+
+		cal_l += real[0] - dummy[0];
+		cal_r += real[1] - dummy[1];
+	}
+
+	snd_soc_update_bits(codec, WM8993_ANALOGUE_HP_0,
+			    WM8993_HPOUT1L_DLY | WM8993_HPOUT1R_DLY |
+			    WM8993_HPOUT1R_OUTP | WM8993_HPOUT1R_RMV_SHORT |
+			    WM8993_HPOUT1L_OUTP | WM8993_HPOUT1L_RMV_SHORT, 0);
+	snd_soc_update_bits(codec, WM8993_POWER_MANAGEMENT_1,
+			    WM8993_HPOUT1L_ENA | WM8993_HPOUT1R_ENA, 0);
+	snd_soc_update_bits(codec, WM8993_CHARGE_PUMP_1,
+			    WM8993_CP_ENA, 0);
+
+	hubs->clk_force(codec, false);
+
+	/* Any cached values won't have the new calibration */
+	while (!list_empty(&hubs->dcs_cache)) {
+		cache = list_first_entry(&hubs->dcs_cache,
+					 struct wm_hubs_dcs_cache, list);
+		list_del(&cache->list);
+		kfree(cache);
+	}
+
+	cal_l /= WM_HUBS_DCS_DEV_CAL_COUNT;
+	cal_r /= WM_HUBS_DCS_DEV_CAL_COUNT;
+
+	dev_dbg(codec->dev, "Applying additional %d/%d DCS correction\n",
+		cal_l, cal_r);
+	hubs->dcs_codes_l += cal_l;
+	hubs->dcs_codes_r += cal_r;
+
+	snd_soc_update_bits(codec, WM8993_LEFT_OUTPUT_VOLUME, 0xffff,
+			    hpvol_l);
+	snd_soc_update_bits(codec, WM8993_RIGHT_OUTPUT_VOLUME, 0xffff,
+			    hpvol_r);
+	snd_soc_update_bits(codec, WM8993_LEFT_OPGA_VOLUME, 0xffff,
+			    mixvol_l);
+	snd_soc_update_bits(codec, WM8993_RIGHT_OPGA_VOLUME, 0xffff,
+			    mixvol_r);
+	snd_soc_update_bits(codec, WM8993_OUTPUT_MIXER1, 0xffff, mixl);
+	snd_soc_update_bits(codec, WM8993_OUTPUT_MIXER2, 0xffff, mixr);
+
+	pm_runtime_put(codec->dev);
+
+	hubs->dcs_dev_cal_done = true;
+}
+
+static void wm_hubs_dcs_cal_work(struct work_struct *work)
+{
+	struct wm_hubs_data *hubs = container_of(work,
+						 struct wm_hubs_data,
+						 dcs_cal_work);
+
+	if (hubs->jack_empty)
+		wm_hubs_can_calibrate_dcs(hubs->codec, hubs->clk_force);
+}
+
+static int wm_hubs_jack_notifier(struct notifier_block *nb,
+				 unsigned long status,
+				 void *data)
+{
+	struct wm_hubs_data *hubs = container_of(nb, struct wm_hubs_data,
+						 jack_notifier);
+
+	if (status)
+		hubs->jack_empty = false;
+	else
+		hubs->jack_empty = true;
+
+	schedule_work(&hubs->dcs_cal_work);
+
+	return 0;
+}
+
+
+void wm_hubs_can_calibrate_dcs(struct snd_soc_codec *codec,
+			       wm_hubs_clk_force clk_force)
+{
+	struct wm_hubs_data *hubs = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_card *card = codec->dapm.card;
+
+	mutex_lock(&codec->mutex);
+
+	hubs->clk_force = clk_force;
+
+	switch (codec->dapm.bias_level) {
+	case SND_SOC_BIAS_OFF:
+	case SND_SOC_BIAS_STANDBY:
+		wm_hubs_calibrate_dcs(codec);
+		break;
+	default:
+		break;
+	}
+
+	mutex_unlock(&codec->mutex);
+}
+EXPORT_SYMBOL_GPL(wm_hubs_can_calibrate_dcs);
 
 /*
  * Update the DC servo calibration on gain changes
@@ -535,7 +751,7 @@ static int hp_event(struct snd_soc_dapm_widget *w,
 		snd_soc_update_bits(codec, WM8993_DC_SERVO_1,
 				    WM8993_DCS_TIMER_PERIOD_01_MASK, 0);
 
-		calibrate_dc_servo(codec);
+		enable_dc_servo(codec);
 
 		reg |= WM8993_HPOUT1R_OUTP | WM8993_HPOUT1R_RMV_SHORT |
 			WM8993_HPOUT1L_OUTP | WM8993_HPOUT1L_RMV_SHORT;
@@ -1112,8 +1328,13 @@ int wm_hubs_add_analogue_routes(struct snd_soc_codec *codec,
 	struct wm_hubs_data *hubs = snd_soc_codec_get_drvdata(codec);
 	struct snd_soc_dapm_context *dapm = &codec->dapm;
 
+	hubs->codec = codec;
+
 	INIT_LIST_HEAD(&hubs->dcs_cache);
 	init_completion(&hubs->dcs_done);
+
+	INIT_WORK(&hubs->dcs_cal_work, wm_hubs_dcs_cal_work);
+	hubs->jack_notifier.notifier_call = wm_hubs_jack_notifier;
 
 	snd_soc_dapm_add_routes(dapm, analogue_routes,
 				ARRAY_SIZE(analogue_routes));
@@ -1208,10 +1429,15 @@ void wm_hubs_set_bias_level(struct snd_soc_codec *codec,
 	int mask, val;
 
 	switch (level) {
+	case SND_SOC_BIAS_OFF:
+		wm_hubs_calibrate_dcs(codec);
+		break;
+
 	case SND_SOC_BIAS_STANDBY:
 		/* Clamp the inputs to VMID while we ramp to charge caps */
 		snd_soc_update_bits(codec, WM8993_INPUTS_CLAMP_REG,
 				    WM8993_INPUTS_CLAMP, WM8993_INPUTS_CLAMP);
+		wm_hubs_calibrate_dcs(codec);
 		break;
 
 	case SND_SOC_BIAS_ON:

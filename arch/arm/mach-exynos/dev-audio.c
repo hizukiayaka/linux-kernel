@@ -54,9 +54,13 @@ static struct s3c_audio_pdata i2sv5_pdata = {
 	.type = {
 		.i2s = {
 			.quirks = QUIRK_PRI_6CHAN | QUIRK_SEC_DAI
-					 | QUIRK_NEED_RSTCLR,
+#if defined(CONFIG_SND_SAMSUNG_LP) || defined(CONFIG_SND_SAMSUNG_ALP)
+                                | QUIRK_ENABLED_IDMA
+#elif defined(CONFIG_SND_SAMSUNG_RP)
+                                | QUIRK_ENABLED_SRP
+#endif
+				 | QUIRK_NEED_RSTCLR,
 			.src_clk = rclksrc,
-			.idma_addr = EXYNOS4_AUDSS_INT_MEM,
 		},
 	},
 };
@@ -92,6 +96,25 @@ static struct s3c_audio_pdata i2sv3_pdata = {
 		},
 	},
 };
+
+
+#if defined (CONFIG_SND_SAMSUNG_ALP)
+static struct resource exynos_srp_resource[] = {
+};
+
+static u64 exynos_srp_dmamask = DMA_BIT_MASK(32);
+
+struct platform_device exynos_device_srp = {
+        .name             = "samsung-rp",
+        .id               = -1,
+        .num_resources    = ARRAY_SIZE(exynos_srp_resource),
+        .resource         = exynos_srp_resource,
+        .dev = {
+                .dma_mask = &exynos_srp_dmamask,
+                .coherent_dma_mask = DMA_BIT_MASK(32),
+        },
+};      
+#endif
 
 static struct resource exynos4_i2s1_resource[] = {
 	[0] = DEFINE_RES_MEM(EXYNOS4_PA_I2S1, SZ_256),

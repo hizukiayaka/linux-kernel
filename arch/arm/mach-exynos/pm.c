@@ -35,6 +35,16 @@
 #include <mach/regs-pmu.h>
 #include <mach/pm-core.h>
 #include <mach/pmu.h>
+#include <mach/smc.h>
+
+#ifdef CONFIG_ARM_TRUSTZONE
+#define REG_INFORM0            (S5P_VA_SYSRAM_NS + 0x8)
+#define REG_INFORM1            (S5P_VA_SYSRAM_NS + 0xC)
+#else 
+#define REG_INFORM0            S5P_INFORM0
+#define REG_INFORM1            S5P_INFORM1
+#endif
+#define REG_INFORM2            S5P_INFORM2
 
 static struct sleep_save exynos4_set_clksrc[] = {
 	{ .reg = EXYNOS4_CLKSRC_MASK_TOP		, .val = 0x00000001, },
@@ -70,6 +80,13 @@ static struct sleep_save exynos_core_save[] = {
 	SAVE_ITEM(S5P_SROM_BC2),
 	SAVE_ITEM(S5P_SROM_BC3),
 };
+static struct sleep_save exynos4_l2cc_save[] = {
+        SAVE_ITEM(S5P_VA_L2CC + L2X0_TAG_LATENCY_CTRL),
+        SAVE_ITEM(S5P_VA_L2CC + L2X0_DATA_LATENCY_CTRL),
+        SAVE_ITEM(S5P_VA_L2CC + L2X0_PREFETCH_CTRL),
+        SAVE_ITEM(S5P_VA_L2CC + L2X0_POWER_CTRL),
+        SAVE_ITEM(S5P_VA_L2CC + L2X0_AUX_CTRL),
+};
 
 
 /* For Cortex-A9 Diagnostic and Power control register */
@@ -80,15 +97,17 @@ static int exynos_cpu_suspend(unsigned long arg)
 #ifdef CONFIG_CACHE_L2X0
 	outer_flush_all();
 #endif
-
+#ifdef CONFIG_ARM_TRUSTZONE
+        exynos_smc(SMC_CMD_SLEEP, 0, 0, 0);
+#else
 	/* issue the standby signal into the pm unit. */
 	cpu_do_idle();
-
-	/* we should never get past here */
-	panic("sleep resumed to originator?");
+#endif
+	pr_info("sleep resumed to originator?");
+	return 1; /* Aborting suspend */
 }
 
-static void exynos_pm_prepare(void)
+void exynos_pm_prepare(void)
 {
 	unsigned int tmp;
 
@@ -100,6 +119,8 @@ static void exynos_pm_prepare(void)
 	} else {
 		/* Disable USE_RETENTION of JPEG_MEM_OPTION */
 		tmp = __raw_readl(EXYNOS5_JPEG_MEM_OPTION);
+		/* clear the wakeup state register */
+		__raw_writel(0x0, S5P_WAKEUP_STAT);
 		tmp &= ~EXYNOS5_OPTION_USE_RETENTION;
 		__raw_writel(tmp, EXYNOS5_JPEG_MEM_OPTION);
 	}
@@ -107,12 +128,12 @@ static void exynos_pm_prepare(void)
 	/* Set value of power down register for sleep mode */
 
 	exynos_sys_powerdown_conf(SYS_SLEEP);
-	__raw_writel(S5P_CHECK_SLEEP, S5P_INFORM1);
+	__raw_writel(S5P_CHECK_SLEEP, REG_INFORM1);
+	__raw_writel(S5P_CHECK_SLEEP, REG_INFORM2);
 
 	/* ensure at least INFORM0 has the resume address */
 
-	__raw_writel(virt_to_phys(s3c_cpu_resume), S5P_INFORM0);
-
+	__raw_writel(virt_to_phys(s3c_cpu_resume), REG_INFORM0);
 	/* Before enter central sequence mode, clock src register have to set */
 
 	if (!soc_is_exynos5250())
@@ -210,7 +231,6 @@ static __init int exynos_pm_drvinit(void)
 	unsigned int tmp;
 
 	s3c_pm_init();
-
 	/* All wakeup disable */
 
 	tmp = __raw_readl(S5P_WAKEUP_MASK);
@@ -233,7 +253,7 @@ arch_initcall(exynos_pm_drvinit);
 static int exynos_pm_suspend(void)
 {
 	unsigned long tmp;
-
+        s3c_pm_do_save(exynos4_l2cc_save, ARRAY_SIZE(exynos4_l2cc_save));
 	/* Setting Central Sequence Register for power down mode */
 
 	tmp = __raw_readl(S5P_CENTRAL_SEQ_CONFIGURATION);
@@ -277,6 +297,7 @@ static void exynos_pm_resume(void)
 		/* No need to perform below restore code */
 		goto early_wakeup;
 	}
+#ifndef CONFIG_ARM_TRUSTZONE
 	if (!soc_is_exynos5250()) {
 		/* Restore Power control register */
 		tmp = save_arm_register[0];
@@ -290,7 +311,7 @@ static void exynos_pm_resume(void)
 			      : : "r" (tmp)
 			      : "cc");
 	}
-
+#endif 
 	/* For release retention */
 
 	__raw_writel((1 << 28), S5P_PAD_RET_MAUDIO_OPTION);
@@ -302,7 +323,6 @@ static void exynos_pm_resume(void)
 	__raw_writel((1 << 28), S5P_PAD_RET_EBIB_OPTION);
 
 	s3c_pm_do_restore_core(exynos_core_save, ARRAY_SIZE(exynos_core_save));
-
 	if (!soc_is_exynos5250()) {
 		exynos4_restore_pll();
 
@@ -311,7 +331,33 @@ static void exynos_pm_resume(void)
 #endif
 	}
 
+#ifdef CONFIG_CACHE_L2X0
+#ifdef CONFIG_ARM_TRUSTZONE
+        /*
+ *          * Restore for Outer cache
+ *                   */
+        exynos_smc(SMC_CMD_L2X0SETUP1, exynos4_l2cc_save[0].val,
+                                       exynos4_l2cc_save[1].val,
+                                       exynos4_l2cc_save[2].val);
+
+        exynos_smc(SMC_CMD_L2X0SETUP2,
+                        L2X0_DYNAMIC_CLK_GATING_EN | L2X0_STNDBY_MODE_EN,
+                        0x7C470001, 0xC200FFFF);
+
+        exynos_smc(SMC_CMD_L2X0INVALL, 0, 0, 0);
+        exynos_smc(SMC_CMD_L2X0CTRL, 1, 0, 0);
+#else
+        s3c_pm_do_restore_core(exynos4_l2cc_save, ARRAY_SIZE(exynos4_l2cc_save));
+        outer_inv_all();
+        /* enable L2X0*/
+        writel_relaxed(1, S5P_VA_L2CC + L2X0_CTRL);
+#endif
+#endif
+
 early_wakeup:
+	__raw_writel(0, REG_INFORM0);
+	__raw_writel(0, REG_INFORM1);
+	__raw_writel(0, REG_INFORM2);
 	return;
 }
 

@@ -39,6 +39,7 @@
 #define WINCON(_win)				(0x20 + ((_win) * 4))
 
 /* OSD1 and OSD4 do not have register D */
+#define WIN_RGB_ORDER(_win)                             (0x2020 + ((_win) * 4))
 
 #define VIDOSD_BASE				(0x40)
 
@@ -136,7 +137,8 @@
 #define WPALCON_W3PAL_16BPP_A555		(1 << 7)
 #define WPALCON_W2PAL_16BPP_A555		(1 << 6)
 
-
+#define WIN_RGB_ORDER_BGR                       (1 << 11)
+#define WIN_RGB_ORDER_RGB                       (0 << 11)
 /* Notes on per-window bpp settings
  *
  * Value	Win0	 Win1	  Win2	   Win3	    Win 4

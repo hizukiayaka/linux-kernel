@@ -24,7 +24,8 @@
 #include <linux/linkage.h>
 #include <asm/asm-offsets.h>
 #include <asm/hardware/cache-l2x0.h>
-
+#include <mach/regs-pmu.h>
+#include <mach/smc.h>
 /*
  *	 The following code is located into the .data section. This is to
  *	 allow l2x0_regs_phys to be accessed with a relative load while we
@@ -50,10 +51,37 @@
 	 */
 
 ENTRY(s3c_cpu_resume)
+	ldr     r0, =INFORM_REG2
+        ldr     r1, [r0]
+        /* Sleep wakeup reset */
+        ldr     r2, =S5P_CHECK_SLEEP
+        cmp     r1, r2
+        beq     cpu_resume
 #ifdef CONFIG_CACHE_L2X0
 	adr	r0, l2x0_regs_phys
 	ldr	r0, [r0]
 	ldr	r1, [r0, #L2X0_R_PHY_BASE]
+#ifdef CONFIG_ARM_TRUSTZONE
+
+	ldr	r1, [r0, #L2X0_R_TAG_LATENCY]
+	ldr	r2, [r0, #L2X0_R_DATA_LATENCY]
+	ldr	r3, [r0, #L2X0_R_PREFETCH_CTRL]
+	ldr	r0, =SMC_CMD_L2X0SETUP2
+	smc	0
+
+	ldr     r0, =SMC_CMD_L2X0SETUP2
+	ldr     r1, =0x3
+	ldr     r2, =0x7C470001
+	ldr     r3, =0xC200FFFF
+	smc     0
+
+	ldr     r0, =SMC_CMD_L2X0CTRL
+	mov     r1, #1
+	mov     r2, #0
+	mov     r3, #0
+	smc     0
+
+#else
 	ldr	r2, [r1, #L2X0_CTRL]
 	tst	r2, #0x1
 	bne	resume_l2on
@@ -70,6 +98,7 @@ ENTRY(s3c_cpu_resume)
 	mov	r2, #1
 	str	r2, [r1, #L2X0_CTRL]
 resume_l2on:
+#endif
 #endif
 	b	cpu_resume
 ENDPROC(s3c_cpu_resume)

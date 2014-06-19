@@ -72,7 +72,6 @@ static inline void s3c_pm_debug_init(void)
 
 unsigned char pm_uart_udivslot;
 
-#ifdef CONFIG_SAMSUNG_PM_DEBUG
 
 struct pm_uart_save uart_save[CONFIG_SERIAL_SAMSUNG_UARTS];
 
@@ -85,6 +84,7 @@ static void s3c_pm_save_uart(unsigned int uart, struct pm_uart_save *save)
 	save->ufcon = __raw_readl(regs + S3C2410_UFCON);
 	save->umcon = __raw_readl(regs + S3C2410_UMCON);
 	save->ubrdiv = __raw_readl(regs + S3C2410_UBRDIV);
+	save->uintm = __raw_readl(regs + S3C64XX_UINTM);
 
 	if (pm_uart_udivslot)
 		save->udivslot = __raw_readl(regs + S3C2443_DIVSLOT);
@@ -113,6 +113,7 @@ static void s3c_pm_restore_uart(unsigned int uart, struct pm_uart_save *save)
 	__raw_writel(save->ufcon, regs + S3C2410_UFCON);
 	__raw_writel(save->umcon, regs + S3C2410_UMCON);
 	__raw_writel(save->ubrdiv, regs + S3C2410_UBRDIV);
+	__raw_writel(save->uintm, regs + S3C64XX_UINTM);
 
 	if (pm_uart_udivslot)
 		__raw_writel(save->udivslot, regs + S3C2443_DIVSLOT);
@@ -125,11 +126,8 @@ static void s3c_pm_restore_uarts(void)
 
 	for (uart = 0; uart < CONFIG_SERIAL_SAMSUNG_UARTS; uart++, save++)
 		s3c_pm_restore_uart(uart, save);
+
 }
-#else
-static void s3c_pm_save_uarts(void) { }
-static void s3c_pm_restore_uarts(void) { }
-#endif
 
 /* The IRQ ext-int code goes here, it is too small to currently bother
  * with its own file. */
@@ -243,6 +241,7 @@ int (*pm_cpu_sleep)(unsigned long);
 
 static int s3c_pm_enter(suspend_state_t state)
 {
+	int ret;
 	/* ensure the debug is initialised (if enabled) */
 
 	s3c_pm_debug_init();
@@ -300,7 +299,9 @@ static int s3c_pm_enter(suspend_state_t state)
 	 * we resume as it saves its own register state and restores it
 	 * during the resume.  */
 
-	cpu_suspend(0, pm_cpu_sleep);
+	ret = cpu_suspend(0, pm_cpu_sleep);
+	if (ret)
+		return ret;
 
 	/* restore the system state */
 

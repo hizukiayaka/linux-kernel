@@ -26,10 +26,13 @@
 #include <media/v4l2-ioctl.h>
 #include <media/videobuf2-core.h>
 #include <media/videobuf2-dma-contig.h>
+#include <mach/sysmmu.h>
+#include <mach/videodev2_samsung.h>
 
 #include "fimc-core.h"
 #include "fimc-reg.h"
 #include "fimc-mdevice.h"
+#include "fimc-ctrl.h"
 
 static char *fimc_clocks[MAX_FIMC_CLOCKS] = {
 	"sclk_fimc", "fimc"
@@ -264,7 +267,7 @@ int fimc_set_scaler_info(struct fimc_ctx *ctx)
 	if (ret)
 		return ret;
 
-	ret = fimc_get_scaler_factor(sy, ty,  &sc->pre_vratio, &sc->vfactor);
+	ret = fimc_get_scaler_factor(sy, ty, &sc->pre_vratio, &sc->vfactor);
 	if (ret)
 		return ret;
 
@@ -517,6 +520,10 @@ static int __fimc_s_ctrl(struct fimc_ctx *ctx, struct v4l2_ctrl *ctrl)
 	struct fimc_variant *variant = fimc->variant;
 	unsigned int flags = FIMC_DST_FMT | FIMC_SRC_FMT;
 	int ret = 0;
+	struct v4l2_control ctrl2;
+
+	ctrl2.id = ctrl->id;
+	ctrl2.value = ctrl->val;
 
 	if (ctrl->flags & V4L2_CTRL_FLAG_INACTIVE)
 		return 0;
@@ -555,6 +562,12 @@ static int __fimc_s_ctrl(struct fimc_ctx *ctx, struct v4l2_ctrl *ctrl)
 		if (ret)
 			return ret;
 		break;
+	default: 
+		if (fimc->vid_cap.use_isp)
+		{
+			ret = v4l2_subdev_call(fimc->vid_cap.is.sd,core, s_ctrl, &ctrl2);
+		}
+		break;
 	}
 
 	ctx->state |= FIMC_PARAMS;
@@ -562,21 +575,31 @@ static int __fimc_s_ctrl(struct fimc_ctx *ctx, struct v4l2_ctrl *ctrl)
 	return 0;
 }
 
+static int fimc_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
+{	
+	struct fimc_ctx *ctx = ctrl_to_ctx(ctrl);
+	struct fimc_dev *fimc = ctx->fimc_dev;
+	struct v4l2_control ctrl2;
+
+	ctrl2.id = ctrl->id;
+	v4l2_subdev_call(fimc->vid_cap.is.sd,core, g_ctrl, &ctrl2);
+	ctrl->val = ctrl2.value;
+	return 0;
+}
 static int fimc_s_ctrl(struct v4l2_ctrl *ctrl)
 {
 	struct fimc_ctx *ctx = ctrl_to_ctx(ctrl);
 	unsigned long flags;
 	int ret;
 
-	spin_lock_irqsave(&ctx->fimc_dev->slock, flags);
 	ret = __fimc_s_ctrl(ctx, ctrl);
-	spin_unlock_irqrestore(&ctx->fimc_dev->slock, flags);
 
 	return ret;
 }
 
-static const struct v4l2_ctrl_ops fimc_ctrl_ops = {
+const struct v4l2_ctrl_ops fimc_ctrl_ops = {
 	.s_ctrl = fimc_s_ctrl,
+	.g_volatile_ctrl = fimc_g_volatile_ctrl,
 };
 
 int fimc_ctrls_create(struct fimc_ctx *ctx)
@@ -589,7 +612,7 @@ int fimc_ctrls_create(struct fimc_ctx *ctx)
 	if (ctx->ctrls.ready)
 		return 0;
 
-	v4l2_ctrl_handler_init(handler, 6);
+	v4l2_ctrl_handler_init(handler, 75);
 
 	ctrls->rotate = v4l2_ctrl_new_std(handler, &fimc_ctrl_ops,
 					V4L2_CID_ROTATE, 0, 270, 90, 0);
@@ -597,6 +620,103 @@ int fimc_ctrls_create(struct fimc_ctx *ctx)
 					V4L2_CID_HFLIP, 0, 1, 1, 0);
 	ctrls->vflip = v4l2_ctrl_new_std(handler, &fimc_ctrl_ops,
 					V4L2_CID_VFLIP, 0, 1, 1, 0);
+	 v4l2_ctrl_new_custom(handler, &scene_mode_cfg, NULL);
+	 v4l2_ctrl_new_custom(handler, &is_s_fmt_scenario, NULL);
+	 v4l2_ctrl_new_custom(handler, &s_m_normal, NULL);
+	 v4l2_ctrl_new_custom(handler, &frame_rate, NULL);
+	 v4l2_ctrl_new_custom(handler, &pos_x, NULL);
+	 v4l2_ctrl_new_custom(handler, &is_pos_x, NULL);
+	 v4l2_ctrl_new_custom(handler, &pos_y, NULL);
+	 v4l2_ctrl_new_custom(handler, &is_pos_y, NULL);
+	 v4l2_ctrl_new_custom(handler, &win_pos_x, NULL);
+	 v4l2_ctrl_new_custom(handler, &win_pos_y, NULL);
+	 v4l2_ctrl_new_custom(handler, &win_width, NULL);
+	 v4l2_ctrl_new_custom(handler, &win_height, NULL);
+	 v4l2_ctrl_new_custom(handler, &focus_mode, NULL);
+	 v4l2_ctrl_new_custom(handler, &s_focus_mode, NULL);
+	 v4l2_ctrl_new_custom(handler, &af_start_stop, NULL);
+	 v4l2_ctrl_new_custom(handler, &caf_start_stop, NULL);
+	 v4l2_ctrl_new_custom(handler, &aeawb_l_ul, NULL);
+	 v4l2_ctrl_new_custom(handler, &flash_mode, NULL);
+	 v4l2_ctrl_new_custom(handler, &awb_mode, NULL);
+	 v4l2_ctrl_new_custom(handler, &white_balance, NULL);
+	 v4l2_ctrl_new_custom(handler, &c_effect, NULL);
+	 v4l2_ctrl_new_custom(handler, &c_i_effect, NULL);
+	 v4l2_ctrl_new_custom(handler, &is_cam_iso, NULL);
+	 v4l2_ctrl_new_custom(handler, &cam_iso, NULL);
+	 v4l2_ctrl_new_custom(handler, &cam_contrast, NULL);
+	 v4l2_ctrl_new_custom(handler, &is_cam_contrast, NULL);
+	 v4l2_ctrl_new_custom(handler, &is_cam_saturation, NULL);
+	 v4l2_ctrl_new_custom(handler, &cam_saturation, NULL);
+	 v4l2_ctrl_new_custom(handler, &is_cam_sharpness, NULL);
+	 v4l2_ctrl_new_custom(handler, &cam_sharpness, NULL);
+	 v4l2_ctrl_new_custom(handler, &is_cam_exposure, NULL);
+	 v4l2_ctrl_new_custom(handler, &cam_brightess, NULL);
+	 v4l2_ctrl_new_custom(handler, &is_cam_brightness, NULL);
+	 v4l2_ctrl_new_custom(handler, &is_cam_hue, NULL);
+	 v4l2_ctrl_new_custom(handler, &cam_metering, NULL);
+	 v4l2_ctrl_new_custom(handler, &is_cam_metering, NULL);
+	 v4l2_ctrl_new_custom(handler, &anti_banding, NULL);
+	 v4l2_ctrl_new_custom(handler, &afc_mode, NULL);
+	 v4l2_ctrl_new_custom(handler, &s_max_face_num, NULL);
+	 v4l2_ctrl_new_custom(handler, &s_roll_angle, NULL);
+	 v4l2_ctrl_new_custom(handler, &s_data_addr, NULL);
+	 v4l2_ctrl_new_custom(handler, &is_set_isp, NULL);
+	 v4l2_ctrl_new_custom(handler, &is_set_drc, NULL);
+	 v4l2_ctrl_new_custom(handler, &is_cmd_isp, NULL);
+	 v4l2_ctrl_new_custom(handler, &is_cmd_drc, NULL);
+	 v4l2_ctrl_new_custom(handler, &is_cmd_fd, NULL);
+	 v4l2_ctrl_new_custom(handler, &is_s_frame_no, NULL);
+	 v4l2_ctrl_new_custom(handler, &cam_scene_mode, NULL);
+	 v4l2_ctrl_new_custom(handler, &is_zoom, NULL);
+	 ctrls->ctrl_is_ext_fcount = v4l2_ctrl_new_custom(handler, &is_ext_fcount, NULL);
+	 ctrls->ctrl_is_ext_fcount->flags |= V4L2_CTRL_FLAG_VOLATILE;
+	 ctrls->ctrl_is_ext_fcount = v4l2_ctrl_new_custom(handler, &is_ext_fnum, NULL);
+	 ctrls->ctrl_is_ext_fcount->flags |= V4L2_CTRL_FLAG_VOLATILE;
+	 ctrls->ctrl_is_ext_fcount = v4l2_ctrl_new_custom(handler, &is_ext_fconfidence, NULL);
+	 ctrls->ctrl_is_ext_fcount->flags |= V4L2_CTRL_FLAG_VOLATILE;
+	 ctrls->ctrl_is_ext_fcount = v4l2_ctrl_new_custom(handler, &is_ext_slevel, NULL);
+	 ctrls->ctrl_is_ext_fcount->flags |= V4L2_CTRL_FLAG_VOLATILE;
+	 ctrls->ctrl_is_ext_fcount = v4l2_ctrl_new_custom(handler, &is_ext_blevel, NULL);
+	 ctrls->ctrl_is_ext_fcount->flags |= V4L2_CTRL_FLAG_VOLATILE;
+	 ctrls->ctrl_is_ext_fcount = v4l2_ctrl_new_custom(handler, &is_ext_topleft_x, NULL);
+	 ctrls->ctrl_is_ext_fcount->flags |= V4L2_CTRL_FLAG_VOLATILE;
+	 ctrls->ctrl_is_ext_fcount = v4l2_ctrl_new_custom(handler, &is_ext_topleft_y, NULL);
+	 ctrls->ctrl_is_ext_fcount->flags |= V4L2_CTRL_FLAG_VOLATILE;
+	 ctrls->ctrl_is_ext_fcount = v4l2_ctrl_new_custom(handler, &is_ext_bottom_right_x, NULL);
+	 ctrls->ctrl_is_ext_fcount->flags |= V4L2_CTRL_FLAG_VOLATILE;
+	 ctrls->ctrl_is_ext_fcount = v4l2_ctrl_new_custom(handler, &is_ext_bottom_right_y, NULL);
+	 ctrls->ctrl_is_ext_fcount->flags |= V4L2_CTRL_FLAG_VOLATILE;
+	 ctrls->ctrl_is_ext_fcount = v4l2_ctrl_new_custom(handler, &is_ext_le_tleft_x, NULL);
+	 ctrls->ctrl_is_ext_fcount->flags |= V4L2_CTRL_FLAG_VOLATILE;
+	 ctrls->ctrl_is_ext_fcount = v4l2_ctrl_new_custom(handler, &is_ext_le_tleft_y, NULL);
+	 ctrls->ctrl_is_ext_fcount->flags |= V4L2_CTRL_FLAG_VOLATILE;
+	 ctrls->ctrl_is_ext_fcount = v4l2_ctrl_new_custom(handler, &is_ext_le_b_right_x, NULL);
+	 ctrls->ctrl_is_ext_fcount->flags |= V4L2_CTRL_FLAG_VOLATILE;
+	 ctrls->ctrl_is_ext_fcount = v4l2_ctrl_new_custom(handler, &is_ext_le_b_right_y, NULL);
+	 ctrls->ctrl_is_ext_fcount->flags |= V4L2_CTRL_FLAG_VOLATILE;
+	 ctrls->ctrl_is_ext_fcount = v4l2_ctrl_new_custom(handler, &is_ext_re_tleft_x, NULL);
+	 ctrls->ctrl_is_ext_fcount->flags |= V4L2_CTRL_FLAG_VOLATILE;
+	 ctrls->ctrl_is_ext_fcount = 	 v4l2_ctrl_new_custom(handler, &is_ext_re_tleft_y, NULL);
+	 ctrls->ctrl_is_ext_fcount->flags |= V4L2_CTRL_FLAG_VOLATILE;
+	 ctrls->ctrl_is_ext_fcount = v4l2_ctrl_new_custom(handler, &is_ext_re_b_right_x, NULL);
+	 ctrls->ctrl_is_ext_fcount->flags |= V4L2_CTRL_FLAG_VOLATILE;
+	 ctrls->ctrl_is_ext_fcount = v4l2_ctrl_new_custom(handler, &is_ext_re_b_right_y, NULL);
+	 ctrls->ctrl_is_ext_fcount->flags |= V4L2_CTRL_FLAG_VOLATILE;
+	 ctrls->ctrl_is_ext_fcount = v4l2_ctrl_new_custom(handler, &is_ext_m_tleft_x, NULL);
+	 ctrls->ctrl_is_ext_fcount->flags |= V4L2_CTRL_FLAG_VOLATILE;
+	 ctrls->ctrl_is_ext_fcount = v4l2_ctrl_new_custom(handler, &is_ext_m_tleft_y, NULL);
+	 ctrls->ctrl_is_ext_fcount->flags |= V4L2_CTRL_FLAG_VOLATILE;
+	 ctrls->ctrl_is_ext_fcount = v4l2_ctrl_new_custom(handler, &is_ext_m_b_right_x, NULL);
+	 ctrls->ctrl_is_ext_fcount->flags |= V4L2_CTRL_FLAG_VOLATILE;
+	 ctrls->ctrl_is_ext_fcount = v4l2_ctrl_new_custom(handler, &is_ext_m_b_right_y, NULL);
+	 ctrls->ctrl_is_ext_fcount->flags |= V4L2_CTRL_FLAG_VOLATILE;
+	 ctrls->ctrl_is_ext_fcount = v4l2_ctrl_new_custom(handler, &is_ext_g_angle, NULL);
+	 ctrls->ctrl_is_ext_fcount->flags |= V4L2_CTRL_FLAG_VOLATILE;
+	 ctrls->ctrl_is_ext_fcount = v4l2_ctrl_new_custom(handler, &is_ext_g_yaw_angle, NULL);
+	 ctrls->ctrl_is_ext_fcount->flags |= V4L2_CTRL_FLAG_VOLATILE;
+	 ctrls->ctrl_is_ext_fcount = v4l2_ctrl_new_custom(handler, &is_ext_g_next, NULL);
+	 ctrls->ctrl_is_ext_fcount->flags |= V4L2_CTRL_FLAG_VOLATILE;
 
 	if (variant->has_alpha)
 		ctrls->alpha = v4l2_ctrl_new_std(handler, &fimc_ctrl_ops,
@@ -755,8 +875,11 @@ void fimc_adjust_mplane_format(struct fimc_fmt *fmt, u32 width, u32 height,
 			bytesperline = bpl;
 
 		plane_fmt->bytesperline = bytesperline;
-		plane_fmt->sizeimage = max((pix->width * pix->height *
-				   fmt->depth[i]) / 8, plane_fmt->sizeimage);
+		if (V4L2_PIX_FMT_JPEG == pix->pixelformat)
+			plane_fmt->sizeimage = 0x46b400;
+		else
+			plane_fmt->sizeimage = max((pix->width * pix->height *
+						fmt->depth[i]) / 8, plane_fmt->sizeimage);
 	}
 }
 
@@ -870,6 +993,7 @@ static int fimc_probe(struct platform_device *pdev)
 	struct s5p_platform_fimc *pdata;
 	struct fimc_dev *fimc;
 	struct resource *res;
+	char workqueue_name[WORKQUEUE_NAME_SIZE];
 	int ret = 0;
 
 	if (pdev->id >= drv_data->num_entities) {
@@ -888,6 +1012,7 @@ static int fimc_probe(struct platform_device *pdev)
 	fimc->pdev = pdev;
 	pdata = pdev->dev.platform_data;
 	fimc->pdata = pdata;
+
 
 	init_waitqueue_head(&fimc->irq_queue);
 	spin_lock_init(&fimc->slock);
@@ -912,6 +1037,13 @@ static int fimc_probe(struct platform_device *pdev)
 	clk_set_rate(fimc->clock[CLK_BUS], drv_data->lclk_frequency);
 	clk_enable(fimc->clock[CLK_BUS]);
 
+	sprintf(workqueue_name, "fimc%d_irq_wq_name", fimc->id);
+	fimc->irq_workqueue = create_singlethread_workqueue(workqueue_name);
+	if (fimc->irq_workqueue == NULL) {
+		dev_err(&pdev->dev, "failed to create workqueue for fimc\n");
+		return -ENOMEM ;
+	}
+
 	ret = devm_request_irq(&pdev->dev, res->start, fimc_irq_handler,
 			       0, dev_name(&pdev->dev), fimc);
 	if (ret) {
@@ -928,6 +1060,9 @@ static int fimc_probe(struct platform_device *pdev)
 	ret = pm_runtime_get_sync(&pdev->dev);
 	if (ret < 0)
 		goto err_sd;
+	ret = platform_sysmmu_on(&pdev->dev);
+	if (ret < 0)
+		goto err_pm;
 	/* Initialize contiguous memory allocator */
 	fimc->alloc_ctx = vb2_dma_contig_init_ctx(&pdev->dev);
 	if (IS_ERR(fimc->alloc_ctx)) {
@@ -938,7 +1073,9 @@ static int fimc_probe(struct platform_device *pdev)
 	dev_dbg(&pdev->dev, "FIMC.%d registered successfully\n", fimc->id);
 
 	pm_runtime_put(&pdev->dev);
+	platform_sysmmu_off(&pdev->dev);
 	return 0;
+	
 err_pm:
 	pm_runtime_put(&pdev->dev);
 err_sd:
@@ -993,6 +1130,7 @@ static int fimc_resume(struct device *dev)
 	spin_lock_irqsave(&fimc->slock, flags);
 	if (!test_and_clear_bit(ST_LPM, &fimc->state) ||
 	    (!fimc_m2m_active(fimc) && !fimc_capture_busy(fimc))) {
+		fimc_hw_reset(fimc);
 		spin_unlock_irqrestore(&fimc->slock, flags);
 		return 0;
 	}
@@ -1151,6 +1289,8 @@ static struct fimc_variant fimc0_variant_exynos4 = {
 
 static struct fimc_variant fimc3_variant_exynos4 = {
 	.pix_hoff	 = 1,
+	.has_inp_rot	 = 1,
+	.has_out_rot	 = 1,
 	.has_cam_if	 = 1,
 	.has_cistatus2	 = 1,
 	.has_mainscaler_ext = 1,

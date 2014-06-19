@@ -43,6 +43,7 @@
 #define SCALER_MAX_VRATIO	64
 #define DMA_MIN_SIZE		8
 #define FIMC_CAMIF_MAX_HEIGHT	0x2000
+#define WORKQUEUE_NAME_SIZE     32
 
 /* indices to the clocks array */
 enum {
@@ -283,6 +284,22 @@ struct fimc_frame {
 };
 
 /**
+ *  * struct fimc_is - fimc is subdevice information
+ *   */
+struct fimc_is {
+        struct v4l2_pix_format  fmt;    
+        struct v4l2_mbus_framefmt mbus_fmt;
+        struct v4l2_subdev      *sd;    
+        u32 frame_count;
+        u32 valid;
+        u32 bad_mark;
+        u32 offset_x;
+        u32 offset_y;
+        u16 camcording;
+	bool powered_on;
+};
+
+/**
  * struct fimc_m2m_device - v4l2 memory-to-memory device data
  * @vfd: the video device node for v4l2 m2m mode
  * @m2m_dev: v4l2 memory-to-memory device data
@@ -325,12 +342,16 @@ struct fimc_vid_cap {
 	struct vb2_alloc_ctx		*alloc_ctx;
 	struct video_device		*vfd;
 	struct v4l2_subdev		subdev;
+	struct v4l2_subdev		*isp_subdev;
+	struct v4l2_subdev		*mipi_subdev;
+	struct v4l2_subdev		*flite_subdev;
 	struct media_pad		vd_pad;
 	struct v4l2_mbus_framefmt	mf;
 	struct media_pad		sd_pads[FIMC_SD_PADS_NUM];
 	struct list_head		pending_buf_q;
 	struct list_head		active_buf_q;
 	struct vb2_queue		vbq;
+	struct fimc_is                  is;
 	int				active_buf_cnt;
 	int				buf_index;
 	unsigned int			frame_count;
@@ -339,6 +360,8 @@ struct fimc_vid_cap {
 	int				refcnt;
 	u32				input;
 	bool				user_subdev_api;
+	bool				use_isp;
+	struct 				fimc_sensor_info *s_info;
 };
 
 /**
@@ -437,12 +460,17 @@ struct fimc_dev {
 	struct clk			*clock[MAX_FIMC_CLOCKS];
 	void __iomem			*regs;
 	wait_queue_head_t		irq_queue;
+	struct workqueue_struct         *irq_workqueue;
 	struct v4l2_device		*v4l2_dev;
 	struct fimc_m2m_device		m2m;
 	struct fimc_vid_cap		vid_cap;
 	unsigned long			state;
 	struct vb2_alloc_ctx		*alloc_ctx;
 	struct fimc_pipeline		pipeline;
+	bool	pipeline_initialized;
+	unsigned int	num_client;
+	bool	is_s5k6a3;
+	bool	is_m5mo;
 };
 
 /**
@@ -466,6 +494,73 @@ struct fimc_ctrls {
 	struct v4l2_ctrl *hflip;
 	struct v4l2_ctrl *vflip;
 	struct v4l2_ctrl *alpha;
+	struct v4l2_ctrl *is_s_scene_mode;
+	struct v4l2_ctrl *is_s_fmt_scenario;
+	struct v4l2_ctrl *s_m_normal;
+	struct v4l2_ctrl *frame_rate;
+	struct v4l2_ctrl *pos_x;
+	struct v4l2_ctrl *is_pos_x;
+	struct v4l2_ctrl *pos_y;
+	struct v4l2_ctrl *is_pos_y;
+	struct v4l2_ctrl *focus_mode;
+	struct v4l2_ctrl *s_focus_mode;
+	struct v4l2_ctrl *af_start_stop;
+	struct v4l2_ctrl *caf_start_stop;
+	struct v4l2_ctrl *aeawb_l_ul;
+	struct v4l2_ctrl *flash_mode;
+	struct v4l2_ctrl *awb_mode;
+	struct v4l2_ctrl *white_balance;
+	struct v4l2_ctrl *c_effect;
+	struct v4l2_ctrl *c_i_effect;
+	struct v4l2_ctrl *is_cam_iso;
+	struct v4l2_ctrl *cam_iso;
+	struct v4l2_ctrl *cam_contrast;
+	struct v4l2_ctrl *is_cam_contrast;
+	struct v4l2_ctrl *is_cam_saturation;
+	struct v4l2_ctrl *cam_saturation;
+	struct v4l2_ctrl *is_cam_sharpness;
+	struct v4l2_ctrl *cam_sharpness;
+	struct v4l2_ctrl *is_cam_exposure;
+	struct v4l2_ctrl *cam_brightess;
+	struct v4l2_ctrl *is_cam_brightness;
+	struct v4l2_ctrl *is_cam_hue;
+	struct v4l2_ctrl *cam_metering;
+	struct v4l2_ctrl *is_cam_metering;
+	struct v4l2_ctrl *anti_banding;
+	struct v4l2_ctrl *afc_mode;
+	struct v4l2_ctrl *s_max_face_num;
+	struct v4l2_ctrl *s_roll_angle;
+	struct v4l2_ctrl *s_data_addr;
+	struct v4l2_ctrl *is_set_isp;
+	struct v4l2_ctrl *is_set_drc;
+	struct v4l2_ctrl *is_cmd_isp;
+	struct v4l2_ctrl *is_cmd_drc;
+	struct v4l2_ctrl *is_cmd_fd;
+	struct v4l2_ctrl *is_s_frame_no;
+	struct v4l2_ctrl *cam_scene_mode;
+	struct v4l2_ctrl *is_zoom;
+	struct v4l2_ctrl *ctrl_is_ext_fcount;
+	struct v4l2_ctrl *ctrl_is_ext_fnum;
+	struct v4l2_ctrl *ctrl_is_ext_fconfidence;
+	struct v4l2_ctrl *ctrl_is_ext_slevel;
+	struct v4l2_ctrl *ctrl_is_ext_blevel;
+	struct v4l2_ctrl *ctrl_is_ext_topleft_x;
+	struct v4l2_ctrl *ctrl_is_ext_topleft_y;
+	struct v4l2_ctrl *ctrl_is_ext_bottom_right_x;
+	struct v4l2_ctrl *ctrl_is_ext_bottom_right_y;
+	struct v4l2_ctrl *ctrl_is_ext_tleft_x;
+	struct v4l2_ctrl *ctrl_is_ext_tleft_y;
+	struct v4l2_ctrl *ctrl_is_ext_e_tleft_x;
+	struct v4l2_ctrl *ctrl_is_ext_e_tleft_y;
+	struct v4l2_ctrl *ctrl_is_ext_e_b_right_x;
+	struct v4l2_ctrl *ctrl_is_ext_e_b_right_y;
+	struct v4l2_ctrl *ctrl_is_ext_m_tleft_x;
+	struct v4l2_ctrl *ctrl_is_ext_m_tleft_y;
+	struct v4l2_ctrl *ctrl_is_ext_m_b_right_x;
+	struct v4l2_ctrl *ctrl_is_ext_m_b_right_y;
+	struct v4l2_ctrl *ctrl_is_ext_g_angle;
+	struct v4l2_ctrl *ctrl_is_ext_g_yaw_angle;
+	struct v4l2_ctrl *ctrl_is_ext_g_next;
 	bool ready;
 };
 
@@ -511,6 +606,8 @@ struct fimc_ctx {
 	struct v4l2_m2m_ctx	*m2m_ctx;
 	struct v4l2_fh		fh;
 	struct fimc_ctrls	ctrls;
+	struct work_struct	fence_work;
+	struct list_head	fence_wait_list;
 };
 
 #define fh_to_ctx(__fh) container_of(__fh, struct fimc_ctx, fh)
@@ -642,7 +739,10 @@ int fimc_register_m2m_device(struct fimc_dev *fimc,
 void fimc_unregister_m2m_device(struct fimc_dev *fimc);
 int fimc_register_driver(void);
 void fimc_unregister_driver(void);
-
+int fimc_is_init(void);
+void fimc_is_exit(void);
+int flite_init(void);
+void flite_exit(void);
 /* -----------------------------------------------------*/
 /* fimc-m2m.c */
 void fimc_m2m_job_finish(struct fimc_ctx *ctx, int vb_state);

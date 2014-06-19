@@ -57,9 +57,18 @@ obj-$(CONFIG_IPMI_HANDLER)	+= ipmi/
 obj-$(CONFIG_HANGCHECK_TIMER)	+= hangcheck-timer.o
 obj-$(CONFIG_TCG_TPM)		+= tpm/
 
+obj-$(CONFIG_DCC_TTY)		+= dcc_tty.o
 obj-$(CONFIG_PS3_FLASH)		+= ps3flash.o
 
 obj-$(CONFIG_JS_RTC)		+= js-rtc.o
 js-rtc-y = rtc.o
 
 obj-$(CONFIG_TILE_SROM)		+= tile-srom.o
+
+obj-$(CONFIG_TINY4412_LEDS)	+= tiny4412_leds.o
+obj-$(CONFIG_TINY4412_HELLO_MODULE)	+= tiny4412_hello_module.o
+obj-$(CONFIG_TINY4412_BUTTONS)	+= tiny4412_buttons.o
+obj-$(CONFIG_TINY4412_BUZZER)	+= tiny4412_pwm.o
+obj-$(CONFIG_TINY4412_BACKLIGHT)+= tiny4412_backlight.o
+obj-$(CONFIG_TINY4412_ADC)		+= tiny4412_adc.o
+

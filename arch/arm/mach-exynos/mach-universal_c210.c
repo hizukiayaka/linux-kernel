@@ -39,7 +39,6 @@
 #include <plat/fb.h>
 #include <plat/mfc.h>
 #include <plat/sdhci.h>
-#include <plat/pd.h>
 #include <plat/regs-fb-v4.h>
 #include <plat/fimc-core.h>
 #include <plat/s5p-time.h>
@@ -551,7 +550,7 @@ static struct max8998_platform_data universal_lp3974_pdata = {
 	.buck2_voltage1		= 1200000,	/* G3D */
 	.buck2_voltage2		= 1100000,
 	.buck1_default_idx	= 0,
-	.buck2_set3		= EXYNOS4_GPE2(0),
+	.buck2_set3		= EXYNOS4210_GPE2(0),
 	.buck2_default_idx	= 0,
 	.wakeup			= true,
 };
@@ -580,7 +579,7 @@ static struct regulator_init_data hdmi_fixed_voltage_init_data = {
 static struct fixed_voltage_config hdmi_fixed_voltage_config = {
 	.supply_name		= "HDMI_EN1",
 	.microvolts		= 5000000,
-	.gpio			= EXYNOS4_GPE0(1),
+	.gpio			= EXYNOS4210_GPE0(1),
 	.enable_high		= true,
 	.init_data		= &hdmi_fixed_voltage_init_data,
 };
@@ -629,12 +628,12 @@ static void __init universal_tsp_init(void)
 	int gpio;
 
 	/* TSP_LDO_ON: XMDMADDR_11 */
-	gpio = EXYNOS4_GPE2(3);
+	gpio = EXYNOS4210_GPE2(3);
 	gpio_request_one(gpio, GPIOF_OUT_INIT_HIGH, "TSP_LDO_ON");
 	gpio_export(gpio, 0);
 
 	/* TSP_INT: XMDMADDR_7 */
-	gpio = EXYNOS4_GPE1(7);
+	gpio = EXYNOS4210_GPE1(7);
 	gpio_request(gpio, "TSP_INT");
 
 	s5p_register_gpio_interrupt(gpio);
@@ -660,8 +659,8 @@ static struct mcs_platform_data touchkey_data = {
 /* GPIO I2C 3_TOUCH 2.8V */
 #define I2C_GPIO_BUS_12		12
 static struct i2c_gpio_platform_data i2c_gpio12_data = {
-	.sda_pin	= EXYNOS4_GPE4(0),	/* XMDMDATA_8 */
-	.scl_pin	= EXYNOS4_GPE4(1),	/* XMDMDATA_9 */
+	.sda_pin	= EXYNOS4210_GPE4(0),	/* XMDMDATA_8 */
+	.scl_pin	= EXYNOS4210_GPE4(1),	/* XMDMDATA_9 */
 };
 
 static struct platform_device i2c_gpio12 = {
@@ -683,13 +682,13 @@ static void __init universal_touchkey_init(void)
 {
 	int gpio;
 
-	gpio = EXYNOS4_GPE3(7);			/* XMDMDATA_7 */
+	gpio = EXYNOS4210_GPE3(7);			/* XMDMDATA_7 */
 	gpio_request(gpio, "3_TOUCH_INT");
 	s5p_register_gpio_interrupt(gpio);
 	s3c_gpio_cfgpin(gpio, S3C_GPIO_SFN(0xf));
 	i2c_gpio12_devs[0].irq = gpio_to_irq(gpio);
 
-	gpio = EXYNOS4_GPE3(3);			/* XMDMDATA_3 */
+	gpio = EXYNOS4210_GPE3(3);			/* XMDMDATA_3 */
 	gpio_request_one(gpio, GPIOF_OUT_INIT_HIGH, "3_TOUCH_EN");
 }
 
@@ -775,7 +774,7 @@ static struct regulator_init_data mmc0_fixed_voltage_init_data = {
 static struct fixed_voltage_config mmc0_fixed_voltage_config = {
 	.supply_name		= "MASSMEMORY_EN",
 	.microvolts		= 2800000,
-	.gpio			= EXYNOS4_GPE1(3),
+	.gpio			= EXYNOS4210_GPE1(3),
 	.enable_high		= true,
 	.init_data		= &mmc0_fixed_voltage_init_data,
 };
@@ -886,7 +885,7 @@ static struct regulator_init_data cam_vt_dio_reg_init_data = {
 static struct fixed_voltage_config cam_vt_dio_fixed_voltage_cfg = {
 	.supply_name	= "CAM_VT_D_IO",
 	.microvolts	= 2800000,
-	.gpio		= EXYNOS4_GPE2(1), /* CAM_PWR_EN2 */
+	.gpio		= EXYNOS4210_GPE2(1), /* CAM_PWR_EN2 */
 	.enable_high	= 1,
 	.init_data	= &cam_vt_dio_reg_init_data,
 };
@@ -908,7 +907,7 @@ static struct regulator_init_data cam_i_core_reg_init_data = {
 static struct fixed_voltage_config cam_i_core_fixed_voltage_cfg = {
 	.supply_name	= "CAM_I_CORE_1.2V",
 	.microvolts	= 1200000,
-	.gpio		= EXYNOS4_GPE2(2),	/* CAM_8M_CORE_EN */
+	.gpio		= EXYNOS4210_GPE2(2),	/* CAM_8M_CORE_EN */
 	.enable_high	= 1,
 	.init_data	= &cam_i_core_reg_init_data,
 };
@@ -930,7 +929,7 @@ static struct regulator_init_data cam_s_if_reg_init_data = {
 static struct fixed_voltage_config cam_s_if_fixed_voltage_cfg = {
 	.supply_name	= "CAM_S_IF_1.8V",
 	.microvolts	= 1800000,
-	.gpio		= EXYNOS4_GPE3(0),	/* CAM_PWR_EN1 */
+	.gpio		= EXYNOS4210_GPE3(0),	/* CAM_PWR_EN1 */
 	.enable_high	= 1,
 	.init_data	= &cam_s_if_reg_init_data,
 };
@@ -948,11 +947,11 @@ static struct s5p_platform_mipi_csis mipi_csis_platdata = {
 	.phy_enable	= s5p_csis_phy_enable,
 };
 
-#define GPIO_CAM_LEVEL_EN(n)	EXYNOS4_GPE4(n + 3)
+#define GPIO_CAM_LEVEL_EN(n)	EXYNOS4210_GPE4(n + 3)
 #define GPIO_CAM_8M_ISP_INT	EXYNOS4_GPX1(5)	/* XEINT_13 */
-#define GPIO_CAM_MEGA_nRST	EXYNOS4_GPE2(5)
-#define GPIO_CAM_VGA_NRST	EXYNOS4_GPE4(7)
-#define GPIO_CAM_VGA_NSTBY	EXYNOS4_GPE4(6)
+#define GPIO_CAM_MEGA_nRST	EXYNOS4210_GPE2(5)
+#define GPIO_CAM_VGA_NRST	EXYNOS4210_GPE4(7)
+#define GPIO_CAM_VGA_NSTBY	EXYNOS4210_GPE4(6)
 
 static int s5k6aa_set_power(int on)
 {

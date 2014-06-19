@@ -309,8 +309,10 @@ static int __init exynos_dma_init(void)
 	dma_cap_set(DMA_CYCLIC, exynos_pdma1_pdata.cap_mask);
 	amba_device_register(&exynos_pdma1_device, &iomem_resource);
 
+#if 0
 	dma_cap_set(DMA_MEMCPY, exynos_mdma1_pdata.cap_mask);
 	amba_device_register(&exynos_mdma1_device, &iomem_resource);
+#endif
 
 	return 0;
 }

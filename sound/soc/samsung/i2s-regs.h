@@ -34,7 +34,7 @@
 
 #define CON_RSTCLR		(1 << 31)
 #define CON_FRXOFSTATUS		(1 << 26)
-#define CON_FRXORINTEN		(1 << 25)
+#define CON_FRXOFINTEN		(1 << 25)
 #define CON_FTXSURSTAT		(1 << 24)
 #define CON_FTXSURINTEN		(1 << 23)
 #define CON_TXSDMA_PAUSE	(1 << 20)

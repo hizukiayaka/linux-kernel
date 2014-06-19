@@ -69,13 +69,18 @@ static const struct s5m_voltage_desc buck_voltage_val3 = {
 };
 
 static const struct s5m_voltage_desc ldo_voltage_val1 = {
-	.max = 3950000,
-	.min =  800000,
+	.max = 1800000,
+	.min = 1800000,
 	.step =  50000,
 };
 
+static const struct s5m_voltage_desc ldo_voltage_val4 = {
+	.max = 3300000,
+	.min = 3000000,
+	.step =  25000,
+};
 static const struct s5m_voltage_desc ldo_voltage_val2 = {
-	.max = 2375000,
+	.max = 1000000,
 	.min =  800000,
 	.step =  25000,
 };
@@ -92,7 +97,7 @@ static const struct s5m_voltage_desc *reg_voltage_map[] = {
 	[S5M8767_LDO9] = &ldo_voltage_val1,
 	[S5M8767_LDO10] = &ldo_voltage_val1,
 	[S5M8767_LDO11] = &ldo_voltage_val1,
-	[S5M8767_LDO12] = &ldo_voltage_val1,
+	[S5M8767_LDO12] = &ldo_voltage_val4,
 	[S5M8767_LDO13] = &ldo_voltage_val1,
 	[S5M8767_LDO14] = &ldo_voltage_val1,
 	[S5M8767_LDO15] = &ldo_voltage_val2,
@@ -226,8 +231,9 @@ static int s5m8767_reg_is_enabled(struct regulator_dev *rdev)
 	int ret, reg;
 	int mask = 0xc0, enable_ctrl;
 	u8 val;
-
+	
 	ret = s5m8767_get_register(rdev, &reg, &enable_ctrl);
+
 	if (ret == -EINVAL)
 		return 1;
 	else if (ret)
@@ -236,8 +242,7 @@ static int s5m8767_reg_is_enabled(struct regulator_dev *rdev)
 	ret = s5m_reg_read(s5m8767->iodev, reg, &val);
 	if (ret)
 		return ret;
-
-	return (val & mask) == enable_ctrl;
+	return  (val & mask) == enable_ctrl;
 }
 
 static int s5m8767_reg_enable(struct regulator_dev *rdev)
@@ -266,11 +271,11 @@ static int s5m8767_reg_disable(struct regulator_dev *rdev)
 	return s5m_reg_update(s5m8767->iodev, reg, ~mask, mask);
 }
 
-static int s5m8767_get_voltage_register(struct regulator_dev *rdev, int *_reg)
+static int s5m8767_get_voltage_register(struct regulator_dev *rdev, u8 *_reg)
 {
 	struct s5m8767_info *s5m8767 = rdev_get_drvdata(rdev);
 	int reg_id = rdev_get_id(rdev);
-	int reg;
+	u8 reg;
 
 	switch (reg_id) {
 	case S5M8767_LDO1 ... S5M8767_LDO2:
@@ -315,7 +320,8 @@ static int s5m8767_get_voltage_register(struct regulator_dev *rdev, int *_reg)
 static int s5m8767_get_voltage_sel(struct regulator_dev *rdev)
 {
 	struct s5m8767_info *s5m8767 = rdev_get_drvdata(rdev);
-	int reg, mask, ret;
+	int mask, ret;
+	u8 reg;
 	int reg_id = rdev_get_id(rdev);
 	u8 val;
 
@@ -381,7 +387,8 @@ static int s5m8767_set_voltage(struct regulator_dev *rdev,
 	struct s5m8767_info *s5m8767 = rdev_get_drvdata(rdev);
 	const struct s5m_voltage_desc *desc;
 	int reg_id = rdev_get_id(rdev);
-	int sel, reg, mask, ret = 0, old_index, index = 0;
+	int sel, mask, ret = 0, old_index, index = 0;
+	u8 reg;
 	u8 val;
 	u8 *buck234_vol = NULL;
 
@@ -459,7 +466,7 @@ static int s5m8767_set_voltage_time_sel(struct regulator_dev *rdev,
 
 static struct regulator_ops s5m8767_ops = {
 	.list_voltage		= s5m8767_list_voltage,
-	.is_enabled		= s5m8767_reg_is_enabled,
+//	.is_enabled		= s5m8767_reg_is_enabled,
 	.enable			= s5m8767_reg_enable,
 	.disable		= s5m8767_reg_disable,
 	.get_voltage_sel	= s5m8767_get_voltage_sel,
@@ -523,7 +530,7 @@ static __devinit int s5m8767_pmic_probe(struct platform_device *pdev)
 	struct regulator_dev **rdev;
 	struct s5m8767_info *s5m8767;
 	int i, ret, size;
-
+	
 	if (!pdata) {
 		dev_err(pdev->dev.parent, "Platform data not supplied\n");
 		return -ENODEV;
@@ -563,7 +570,7 @@ static __devinit int s5m8767_pmic_probe(struct platform_device *pdev)
 	rdev = s5m8767->rdev;
 	s5m8767->dev = &pdev->dev;
 	s5m8767->iodev = iodev;
-	s5m8767->num_regulators = S5M8767_REG_MAX - 2;
+	s5m8767->num_regulators = pdata->num_regulators; /* S5M8767_REG_MAX - 2; */
 	platform_set_drvdata(pdev, s5m8767);
 
 	s5m8767->buck_gpioindex = pdata->buck_default_idx;

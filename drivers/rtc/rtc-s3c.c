@@ -549,10 +549,11 @@ static int __devinit s3c_rtc_probe(struct platform_device *pdev)
 	s3c_rtc_gettime(NULL, &rtc_tm);
 
 	if (rtc_valid_tm(&rtc_tm)) {
-		rtc_tm.tm_year	= 100;
+		/* Set the default time to 2013-1-1 12:00 */
+		rtc_tm.tm_year	= 113;
 		rtc_tm.tm_mon	= 0;
 		rtc_tm.tm_mday	= 1;
-		rtc_tm.tm_hour	= 0;
+		rtc_tm.tm_hour	= 12;
 		rtc_tm.tm_min	= 0;
 		rtc_tm.tm_sec	= 0;
 

@@ -21,6 +21,7 @@
 #include <linux/sched.h>
 #include <linux/version.h>
 #include <linux/videodev2.h>
+#include <media/v4l2-event.h>
 #include <linux/workqueue.h>
 #include <media/v4l2-ctrls.h>
 #include <media/videobuf2-core.h>
@@ -30,6 +31,7 @@
 #include "s5p_mfc_enc.h"
 #include "s5p_mfc_intr.h"
 #include "s5p_mfc_opr.h"
+#include "s5p_mfc_shm.h"
 
 static struct s5p_mfc_fmt formats[] = {
 	{
@@ -539,6 +541,16 @@ static struct mfc_control controls[] = {
 		.step = 1,
 		.default_value = 0,
 	},
+	{
+		.id = V4L2_CID_CODEC_FRAME_TAG,
+		.type = V4L2_CTRL_TYPE_INTEGER,
+		.name = "Frame Tag",
+		.minimum = 0,
+		.maximum = INT_MAX,
+		.step = 1,
+		.default_value = 0,
+		.is_volatile = 1,
+	},
 };
 
 #define NUM_CTRLS ARRAY_SIZE(controls)
@@ -576,9 +588,9 @@ static int s5p_mfc_ctx_ready(struct s5p_mfc_ctx *ctx)
 	if (ctx->state == MFCINST_RUNNING &&
 		ctx->src_queue_cnt >= 1 && ctx->dst_queue_cnt >= 1)
 		return 1;
-	/* context is ready to encode remain frames */
+	/* context is ready to encode remainng frames */
 	if (ctx->state == MFCINST_FINISHING &&
-		ctx->src_queue_cnt >= 1 && ctx->dst_queue_cnt >= 1)
+		ctx->src_queue_cnt >= 1)
 		return 1;
 	mfc_debug(2, "ctx is not ready\n");
 	return 0;
@@ -724,7 +736,7 @@ static int enc_post_frame_start(struct s5p_mfc_ctx *ctx)
 	if ((ctx->src_queue_cnt > 0) && (ctx->state == MFCINST_RUNNING)) {
 		mb_entry = list_entry(ctx->src_queue.next, struct s5p_mfc_buf,
 									list);
-		if (mb_entry->used) {
+		if (mb_entry->flags & MFC_BUF_FLAG_USED) {
 			list_del(&mb_entry->list);
 			ctx->src_queue_cnt--;
 			list_add_tail(&mb_entry->list, &ctx->ref_queue);
@@ -1114,27 +1126,60 @@ static int vidioc_qbuf(struct file *file, void *priv, struct v4l2_buffer *buf)
 		mfc_err("Call on QBUF after unrecoverable error\n");
 		return -EIO;
 	}
-	if (buf->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
+	if (buf->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
+		if (ctx->state == MFCINST_FINISHING) {
+			mfc_err("Call on QBUF after EOS command\n");
+			return -EIO;
+		}
 		return vb2_qbuf(&ctx->vq_src, buf);
-	else if (buf->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
+	} else if (buf->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
 		return vb2_qbuf(&ctx->vq_dst, buf);
+	}
 	return -EINVAL;
 }
 
 /* Dequeue a buffer */
 static int vidioc_dqbuf(struct file *file, void *priv, struct v4l2_buffer *buf)
 {
+	const struct v4l2_event ev = {
+		.type = V4L2_EVENT_EOS
+	};
 	struct s5p_mfc_ctx *ctx = fh_to_ctx(priv);
+	int ret;
 
 	if (ctx->state == MFCINST_ERROR) {
 		mfc_err("Call on DQBUF after unrecoverable error\n");
 		return -EIO;
 	}
-	if (buf->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
-		return vb2_dqbuf(&ctx->vq_src, buf, file->f_flags & O_NONBLOCK);
-	else if (buf->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
-		return vb2_dqbuf(&ctx->vq_dst, buf, file->f_flags & O_NONBLOCK);
-	return -EINVAL;
+	if (buf->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
+		ret = vb2_dqbuf(&ctx->vq_src, buf, file->f_flags & O_NONBLOCK);
+	} else if (buf->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
+		ret = vb2_dqbuf(&ctx->vq_dst, buf, file->f_flags & O_NONBLOCK);
+		if (ret == 0 && ctx->state == MFCINST_FINISHED
+				&& list_empty(&ctx->vq_dst.done_list))
+			v4l2_event_queue_fh(&ctx->fh, &ev);
+	} else {
+		return -EINVAL;
+	}
+
+	return ret;
+}
+
+/* Export DMA buffer */
+static int vidioc_expbuf(struct file *file, void *priv,
+	struct v4l2_exportbuffer *eb)
+{
+	struct s5p_mfc_ctx *ctx = fh_to_ctx(priv);
+	int ret;
+
+	if (eb->mem_offset < DST_QUEUE_OFF_BASE)
+		return vb2_expbuf(&ctx->vq_src, eb);
+
+	eb->mem_offset -= DST_QUEUE_OFF_BASE;
+	ret = vb2_expbuf(&ctx->vq_dst, eb);
+	eb->mem_offset += DST_QUEUE_OFF_BASE;
+
+	return ret;
 }
 
 /* Stream on */
@@ -1420,6 +1465,9 @@ static int s5p_mfc_enc_s_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_MPEG_VIDEO_MPEG4_QPEL:
 		p->codec.mpeg4.quarter_pixel = ctrl->val;
 		break;
+	case V4L2_CID_CODEC_FRAME_TAG:
+		ctx->frame_tag = ctrl->val;
+		break;
 	default:
 		v4l2_err(&dev->v4l2_dev, "Invalid control, id=%d, val=%d\n",
 							ctrl->id, ctrl->val);
@@ -1428,8 +1476,23 @@ static int s5p_mfc_enc_s_ctrl(struct v4l2_ctrl *ctrl)
 	return ret;
 }
 
+static int s5p_mfc_enc_g_v_ctrl(struct v4l2_ctrl *ctrl)
+{
+	struct s5p_mfc_ctx *ctx = ctrl_to_ctx(ctrl);
+
+	switch (ctrl->id) {
+	case V4L2_CID_CODEC_FRAME_TAG:
+		ctrl->val = s5p_mfc_read_shm(ctx, GET_FRAME_TAG_TOP);
+		break;
+	default:
+		return -EINVAL;
+	}
+	return 0;
+}
+
 static const struct v4l2_ctrl_ops s5p_mfc_enc_ctrl_ops = {
 	.s_ctrl = s5p_mfc_enc_s_ctrl,
+	.g_volatile_ctrl = s5p_mfc_enc_g_v_ctrl,
 };
 
 static int vidioc_s_parm(struct file *file, void *priv,
@@ -1466,6 +1529,57 @@ static int vidioc_g_parm(struct file *file, void *priv,
 	return 0;
 }
 
+int vidioc_encoder_cmd(struct file *file, void *priv,
+			struct v4l2_encoder_cmd *cmd)
+{
+	struct s5p_mfc_ctx *ctx = fh_to_ctx(priv);
+	struct s5p_mfc_dev *dev = ctx->dev;
+	struct s5p_mfc_buf *buf;
+	unsigned long flags;
+
+	switch (cmd->cmd) {
+	case V4L2_ENC_CMD_STOP:
+		if (cmd->flags != 0)
+			return -EINVAL;
+
+		if (!ctx->vq_src.streaming)
+			return -EINVAL;
+
+		spin_lock_irqsave(&dev->irqlock, flags);
+		if (list_empty(&ctx->src_queue)) {
+			mfc_debug(2, "EOS: empty src queue, entering finishing state");
+			ctx->state = MFCINST_FINISHING;
+			spin_unlock_irqrestore(&dev->irqlock, flags);
+			s5p_mfc_try_run(dev);
+		} else {
+			mfc_debug(2, "EOS: marking last buffer of stream");
+			buf = list_entry(ctx->src_queue.prev,
+					struct s5p_mfc_buf, list);
+			if (buf->flags & MFC_BUF_FLAG_USED)
+				ctx->state = MFCINST_FINISHING;
+			else
+				buf->flags |= MFC_BUF_FLAG_EOS;
+			spin_unlock_irqrestore(&dev->irqlock, flags);
+		}
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int vidioc_subscribe_event(struct v4l2_fh *fh,
+		const struct v4l2_event_subscription *sub)
+{
+	switch (sub->type) {
+	case V4L2_EVENT_EOS:
+		return v4l2_event_subscribe(fh, sub, 2, NULL);
+	default:
+		return -EINVAL;
+	}
+}
+
 static const struct v4l2_ioctl_ops s5p_mfc_enc_ioctl_ops = {
 	.vidioc_querycap = vidioc_querycap,
 	.vidioc_enum_fmt_vid_cap = vidioc_enum_fmt_vid_cap,
@@ -1482,10 +1596,14 @@ static const struct v4l2_ioctl_ops s5p_mfc_enc_ioctl_ops = {
 	.vidioc_querybuf = vidioc_querybuf,
 	.vidioc_qbuf = vidioc_qbuf,
 	.vidioc_dqbuf = vidioc_dqbuf,
+	.vidioc_expbuf = vidioc_expbuf,
 	.vidioc_streamon = vidioc_streamon,
 	.vidioc_streamoff = vidioc_streamoff,
 	.vidioc_s_parm = vidioc_s_parm,
 	.vidioc_g_parm = vidioc_g_parm,
+	.vidioc_encoder_cmd = vidioc_encoder_cmd,
+	.vidioc_subscribe_event = vidioc_subscribe_event,
+	.vidioc_unsubscribe_event = v4l2_event_unsubscribe,
 };
 
 static int check_vb_with_fmt(struct s5p_mfc_fmt *fmt, struct vb2_buffer *vb)
@@ -1701,7 +1819,7 @@ static void s5p_mfc_buf_queue(struct vb2_buffer *vb)
 	}
 	if (vq->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
 		mfc_buf = &ctx->dst_bufs[vb->v4l2_buf.index];
-		mfc_buf->used = 0;
+		mfc_buf->flags &= ~MFC_BUF_FLAG_USED;
 		/* Mark destination as available for use by MFC */
 		spin_lock_irqsave(&dev->irqlock, flags);
 		list_add_tail(&mfc_buf->list, &ctx->dst_queue);
@@ -1709,17 +1827,10 @@ static void s5p_mfc_buf_queue(struct vb2_buffer *vb)
 		spin_unlock_irqrestore(&dev->irqlock, flags);
 	} else if (vq->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
 		mfc_buf = &ctx->src_bufs[vb->v4l2_buf.index];
-		mfc_buf->used = 0;
+		mfc_buf->flags &= ~MFC_BUF_FLAG_USED;
 		spin_lock_irqsave(&dev->irqlock, flags);
-		if (vb->v4l2_planes[0].bytesused == 0) {
-			mfc_debug(1, "change state to FINISHING\n");
-			ctx->state = MFCINST_FINISHING;
-			vb2_buffer_done(vb, VB2_BUF_STATE_DONE);
-			cleanup_ref_queue(ctx);
-		} else {
-			list_add_tail(&mfc_buf->list, &ctx->src_queue);
-			ctx->src_queue_cnt++;
-		}
+		list_add_tail(&mfc_buf->list, &ctx->src_queue);
+		ctx->src_queue_cnt++;
 		spin_unlock_irqrestore(&dev->irqlock, flags);
 	} else {
 		mfc_err("unsupported buffer type (%d)\n", vq->type);

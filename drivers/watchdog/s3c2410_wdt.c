@@ -47,6 +47,10 @@
 #undef S3C_VA_WATCHDOG
 #define S3C_VA_WATCHDOG (0)
 
+#ifdef CONFIG_CPU_FREQ
+#undef CONFIG_CPU_FREQ
+#endif
+
 #include <plat/regs-watchdog.h>
 
 #define CONFIG_S3C2410_WATCHDOG_ATBOOT		(0)

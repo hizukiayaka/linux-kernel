@@ -679,11 +679,8 @@ static u8 sdhci_calc_timeout(struct sdhci_host *host, struct mmc_command *cmd)
 			break;
 	}
 
-	if (count >= 0xF) {
-		DBG("%s: Too large timeout 0x%x requested for CMD%d!\n",
-		    mmc_hostname(host->mmc), count, cmd->opcode);
+	if (count >= 0xF)
 		count = 0xE;
-	}
 
 	return count;
 }
@@ -1082,7 +1079,7 @@ static void sdhci_set_clock(struct sdhci_host *host, unsigned int clock)
 	if (host->ops->set_clock) {
 		host->ops->set_clock(host, clock);
 		if (host->quirks & SDHCI_QUIRK_NONSTANDARD_CLOCK)
-			return;
+			goto out;
 	}
 
 	sdhci_writew(host, 0, SDHCI_CLOCK_CONTROL);
@@ -1953,6 +1950,7 @@ static void sdhci_tasklet_card(unsigned long param)
 
 	/* Check host->mrq first in case we are runtime suspended */
 	if (host->mrq &&
+	    !(host->quirks & SDHCI_QUIRK_BROKEN_CARD_DETECTION) &&
 	    !(sdhci_readl(host, SDHCI_PRESENT_STATE) & SDHCI_CARD_PRESENT)) {
 		pr_err("%s: Card removed during transfer!\n",
 			mmc_hostname(host->mmc));
@@ -2272,14 +2270,15 @@ static irqreturn_t sdhci_irq(int irq, void *dev_id)
 
 	spin_lock(&host->lock);
 
-	if (host->runtime_suspended) {
+	intmask = sdhci_readl(host, SDHCI_INT_STATUS);
+
+	if (host->runtime_suspended &&
+		!(intmask & (SDHCI_INT_CARD_INSERT | SDHCI_INT_CARD_REMOVE))) {
 		spin_unlock(&host->lock);
 		pr_warning("%s: got irq while runtime suspended\n",
 		       mmc_hostname(host->mmc));
 		return IRQ_HANDLED;
 	}
-
-	intmask = sdhci_readl(host, SDHCI_INT_STATUS);
 
 	if (!intmask || intmask == 0xffffffff) {
 		result = IRQ_NONE;
@@ -2486,8 +2485,13 @@ static int sdhci_runtime_pm_put(struct sdhci_host *host)
 
 int sdhci_runtime_suspend_host(struct sdhci_host *host)
 {
+	u32 mask = SDHCI_INT_ALL_MASK & \
+			   ~(SDHCI_INT_CARD_INSERT | SDHCI_INT_CARD_REMOVE);
 	unsigned long flags;
 	int ret = 0;
+
+	if (host->quirks & SDHCI_QUIRK_BROKEN_CARD_DETECTION)
+		mask = SDHCI_INT_ALL_MASK;
 
 	/* Disable tuning since we are suspending */
 	if (host->version >= SDHCI_SPEC_300 &&
@@ -2497,7 +2501,7 @@ int sdhci_runtime_suspend_host(struct sdhci_host *host)
 	}
 
 	spin_lock_irqsave(&host->lock, flags);
-	sdhci_mask_irqs(host, SDHCI_INT_ALL_MASK);
+	sdhci_mask_irqs(host, mask);
 	spin_unlock_irqrestore(&host->lock, flags);
 
 	synchronize_irq(host->irq);

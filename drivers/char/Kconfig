@@ -6,6 +6,19 @@ menu "Character devices"
 
 source "drivers/tty/Kconfig"
 
+config DEVMEM
+	bool "Memory device driver"
+	default y
+	help
+	  The memory driver provides two character devices, mem and kmem, which
+	  provide access to the system's memory. The mem device is a view of
+	  physical memory, and each byte in the device corresponds to the
+	  matching physical address. The kmem device is the same as mem, but
+	  the addresses correspond to the kernel's virtual address space rather
+	  than physical memory. These devices are standard parts of a Linux
+	  system and most users should say Y here. You might say N if very
+	  security conscience or memory is tight.
+
 config DEVKMEM
 	bool "/dev/kmem virtual device support"
 	default y
@@ -14,6 +27,49 @@ config DEVKMEM
 	  /dev/kmem device is rarely used, but can be used for certain
 	  kind of kernel debugging operations.
 	  When in doubt, say "N".
+
+config TINY4412_LEDS
+	tristate "LED Support for FriendlyARM Tiny4412 GPIO LEDs"
+	depends on MACH_TINY4412
+	default y
+	help
+	  This option enables support for LEDs connected to GPIO lines
+	  on Tiny4412 boards.
+
+config TINY4412_HELLO_MODULE
+	tristate "Tiny4412 module sample"
+	depends on ARCH_EXYNOS4
+	help
+	  Tiny4412 module sample.
+
+config TINY4412_BUTTONS
+	tristate "Buttons driver for FriendlyARM Tiny4412 development boards"
+	depends on ARCH_EXYNOS4 && !INPUT_GPIO
+	default y if !INPUT_GPIO
+	help
+	  this is buttons driver for FriendlyARM Tiny4412 development boards
+
+config TINY4412_BUZZER
+	tristate "Buzzer driver for FriendlyARM Tiny4412 development boards"
+	depends on MACH_TINY4412
+	default y
+	help
+	  this is buzzer driver for FriendlyARM Tiny4412 development boards
+
+config TINY4412_ADC
+	tristate "ADC driver for FriendlyARM Tiny4412 development boards"
+	depends on MACH_TINY4412
+	select S3C_ADC
+	default y
+	help
+	  this is ADC driver for FriendlyARM Tiny4412 development boards
+
+config TINY4412_BACKLIGHT
+	tristate "Backlight control for FriendlyARM development boards"
+	depends on MACH_TINY4412
+	default n
+	help
+	  this is Backlight driver for FriendlyARM Tiny4412 development boards
 
 config STALDRV
 	bool "Stallion multiport serial support"
@@ -582,6 +638,10 @@ config DEVPORT
 	depends on !M68K
 	depends on ISA || PCI
 	default y
+
+config DCC_TTY
+	tristate "DCC tty driver"
+	depends on ARM
 
 source "drivers/s390/char/Kconfig"
 

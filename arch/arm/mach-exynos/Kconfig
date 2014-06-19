@@ -54,6 +54,8 @@ config SOC_EXYNOS4412
 	default y
 	depends on ARCH_EXYNOS4
 	select SAMSUNG_DMADEV
+	select S5P_DEV_USB_SWITCH
+	select S5P_DEV_FIMG2D
 	help
 	  Enable EXYNOS4412 SoC support
 
@@ -164,6 +166,20 @@ config EXYNOS4_SETUP_FIMC
 	help
 	  Common setup code for the camera interfaces.
 
+config EXYNOS4_SETUP_FIMC_IS
+	bool
+	depends on VIDEO_EXYNOS_FIMC_IS
+	default y
+	help
+	  Common setup code for the FIMC-IS
+
+config EXYNOS4_DEV_FIMC_IS
+	bool
+	depends on VIDEO_EXYNOS_FIMC_IS
+	default y
+	help
+	  Compile in platform device definition for FIMC-IS
+
 config EXYNOS4_SETUP_USB_PHY
 	bool
 	help
@@ -173,6 +189,66 @@ config EXYNOS_SETUP_SPI
 	bool
 	help
 	  Common setup code for SPI GPIO configurations.
+
+config EXYNOS4_SETUP_HDMI
+	bool
+	help
+	  Common setup code for HDMI.
+
+config EXYNOS_ASV
+	bool "ASV support for Exynos4x12"
+	default y
+	depends on ARM_EXYNOS4X12_CPUFREQ || ARM_EXYNOS4_BUS_DEVFREQ 
+	help
+	  Common ASV support for Exynos4x12 SoCs.
+
+config EXYNOS4412_REV_BIN_1GHz
+	bool "Upto 1GHz support for Exynos4x12"
+	help
+	  Enables CPU-FREQ support upto 1GHz only for Exynos4412.
+
+choice
+	prompt "Support DVFS based CPU Hotplug"
+	optional
+
+config EXYNOS_DVFS_NR_RUNNING_POLICY
+	bool "DVFS-NR CPU Hotplug"
+	depends on HOTPLUG_CPU && SMP && ARM_EXYNOS4X12_CPUFREQ
+	help
+	  Dynamic CPU HOTLUG for EXYNOS-4412 based on cpu-freq and no. of
+	  running threads. 
+
+config EXYNOS_DVFS_NR_RUNNING_QUICK_POLICY
+	bool "QUICK DVFS_NR CPU Hotplug"
+	depends on HOTPLUG_CPU && SMP && ARM_EXYNOS4X12_CPUFREQ
+	help
+	  Dynamic CPU HOTLUG for EXYNOS-4412 based on cpu-freq and no. of
+	  running threads. It can bring all the cpus up quickly in single run.
+endchoice
+
+config CONFIG_EXYNOS_DVFS_NR_POLICY_OLD
+	tristate "Support DVFS CPU Hotplug OLD"
+	depends on HOTPLUG_CPU && SMP && ARM_EXYNOS4X12_CPUFREQ
+	help
+	  Dynamic CPU HOTLUG for EXYNOS-4412 based on cpu-freq and no. of
+	  running threads. 
+
+
+menu "Busfreq Model"
+	depends on ARM_EXYNOS_CPUFREQ
+
+config BUSFREQ
+	bool "Busfreq with PPC/PPMU"
+	depends on ARM_EXYNOS_CPUFREQ
+	select ARCH_HAS_OPP
+	select PM_OPP
+
+config BUSFREQ_OPP
+	bool "Busfreq with OPP"
+	depends on ARM_EXYNOS_CPUFREQ
+	select ARCH_HAS_OPP
+	select PM_OPP
+endmenu
 
 # machine support
 
@@ -207,6 +283,7 @@ config MACH_SMDKV310
 	select S3C_DEV_HSMMC1
 	select S3C_DEV_HSMMC2
 	select S3C_DEV_HSMMC3
+	select S3C_DEV_USB_HSOTG
 	select SAMSUNG_DEV_BACKLIGHT
 	select EXYNOS_DEV_DRM
 	select EXYNOS_DEV_SYSMMU
@@ -326,6 +403,7 @@ config MACH_ORIGEN
 	select S3C_DEV_WDT
 	select S3C_DEV_HSMMC
 	select S3C_DEV_HSMMC2
+	select S3C_DEV_USB_HSOTG
 	select S5P_DEV_FIMC0
 	select S5P_DEV_FIMC1
 	select S5P_DEV_FIMC2
@@ -354,28 +432,43 @@ comment "EXYNOS4212 Boards"
 config MACH_SMDK4212
 	bool "SMDK4212"
 	select SOC_EXYNOS4212
+	select S5P_GPIO_INT
 	select S3C_DEV_HSMMC2
 	select S3C_DEV_HSMMC3
 	select S3C_DEV_I2C1
+	select S3C_DEV_I2C2
 	select S3C_DEV_I2C3
+	select S3C_DEV_I2C4
 	select S3C_DEV_I2C7
 	select S3C_DEV_RTC
+	select S3C_DEV_USB_HSOTG
 	select S3C_DEV_WDT
 	select S5P_DEV_FIMC0
 	select S5P_DEV_FIMC1
 	select S5P_DEV_FIMC2
 	select S5P_DEV_FIMC3
+	select S5P_DEV_CSIS0
+	select S5P_DEV_CSIS1
+	select S5P_DEV_FIMD0
 	select S5P_DEV_MFC
+	select S5P_DEV_I2C_HDMIPHY
+	select S5P_SETUP_MIPIPHY
 	select SAMSUNG_DEV_BACKLIGHT
 	select SAMSUNG_DEV_KEYPAD
 	select SAMSUNG_DEV_PWM
 	select EXYNOS_DEV_SYSMMU
 	select EXYNOS_DEV_DMA
+	select EXYNOS4_SETUP_FIMD0
 	select EXYNOS4_SETUP_I2C1
+	select EXYNOS4_SETUP_I2C2
 	select EXYNOS4_SETUP_I2C3
+	select EXYNOS4_SETUP_I2C4
 	select EXYNOS4_SETUP_I2C7
 	select EXYNOS4_SETUP_KEYPAD
 	select EXYNOS4_SETUP_SDHCI
+	select EXYNOS4_SETUP_USB_PHY
+	select EXYNOS4_SETUP_HDMI
+	select EXYNOS4_SETUP_FIMC
 	help
 	  Machine support for Samsung SMDK4212
 
@@ -387,6 +480,68 @@ config MACH_SMDK4412
 	select MACH_SMDK4212
 	help
 	  Machine support for Samsung SMDK4412
+
+config MACH_TINY4412
+	bool "TINY4412"
+	select SOC_EXYNOS4212
+	select SOC_EXYNOS4412
+	select S5P_GPIO_INT
+	select S3C_DEV_HSMMC2
+	select S3C_DEV_HSMMC3
+	select S3C_DEV_I2C1
+	select S3C_DEV_I2C2
+	select S3C_DEV_I2C3
+	select S3C_DEV_I2C4
+	select S3C_DEV_I2C7
+	select S3C_DEV_RTC
+	select S5P_DEV_USB_EHCI
+	select S3C_DEV_USB_HSOTG
+	select S3C_DEV_WDT
+	select S5P_DEV_FIMC0
+	select S5P_DEV_FIMC1
+	select S5P_DEV_FIMC2
+	select S5P_DEV_FIMC3
+	select S5P_DEV_CSIS0
+	select S5P_DEV_CSIS1
+	select S5P_DEV_FIMD0
+	select S5P_DEV_G2D
+	select S5P_DEV_I2C_HDMIPHY
+	select S5P_DEV_JPEG
+	select S5P_DEV_MFC
+	select S5P_DEV_TV
+	select S5P_SETUP_MIPIPHY
+	select SAMSUNG_DEV_ADC
+	select SAMSUNG_DEV_BACKLIGHT
+	select SAMSUNG_DEV_PWM
+	select EXYNOS_DEV_SYSMMU
+	select EXYNOS_DEV_DMA
+	select EXYNOS_DEV_DRM
+	select EXYNOS4_DEV_AHCI
+	select EXYNOS4_DEV_USB_OHCI
+	select EXYNOS4_SETUP_FIMD0
+	select EXYNOS4_SETUP_I2C1
+	select EXYNOS4_SETUP_I2C2
+	select EXYNOS4_SETUP_I2C3
+	select EXYNOS4_SETUP_I2C4
+	select EXYNOS4_SETUP_I2C7
+	select EXYNOS4_SETUP_SDHCI
+	select EXYNOS4_SETUP_USB_PHY
+	select EXYNOS4_SETUP_HDMI
+	select EXYNOS4_SETUP_FIMC
+	select WIRELESS_EXT
+	select WEXT_SPY
+	select WEXT_PRIV
+	select AVERAGE
+	help
+	  Machine support for FriendlyARM Tiny4412
+
+config EXYNOS_LPA
+	bool "Exynos4 LPA Mode Support"
+	depends on SOC_EXYNOS4412 && SND_SAMSUNG_ALP
+	default y
+	help
+	  Exynos4 LPA mode support.Enable if want to support LPA.
+
 endif
 
 comment "Flattened Device Tree based board for EXYNOS SoCs"
@@ -415,6 +570,14 @@ config MACH_EXYNOS5_DT
 	  Select this if a fdt blob is available for the EXYNOS4 SoC based board.
 
 if ARCH_EXYNOS4
+
+comment "SELECT SYNOPSYS CONTROLLER INTERFACE DRIVER"
+config EXYNOS4_DEV_DWMCI
+	bool "DWMCI"
+	default n
+	select MMC_DW
+	help
+	  IF DWMCI is used, SDHC channel 0 is disabled.
 
 comment "Configuration for HSMMC 8-bit bus width"
 

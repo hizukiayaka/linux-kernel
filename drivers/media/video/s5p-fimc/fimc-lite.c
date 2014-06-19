@@ -28,6 +28,7 @@
 #include <media/v4l2-mem2mem.h>
 #include <media/videobuf2-core.h>
 #include <media/videobuf2-dma-contig.h>
+#include <mach/sysmmu.h>
 
 #include "fimc-mdevice.h"
 #include "fimc-core.h"
@@ -460,6 +461,9 @@ static int fimc_lite_open(struct file *file)
 	ret = pm_runtime_get_sync(&fimc->pdev->dev);
 	if (ret < 0)
 		goto done;
+	ret = platform_sysmmu_on(&fimc->pdev->dev);
+	if (ret < 0)
+		goto err_pm;
 
 	ret = v4l2_fh_open(file);
 	if (ret < 0)
@@ -477,6 +481,8 @@ static int fimc_lite_open(struct file *file)
 
 		fimc_lite_clear_event_counters(fimc);
 	}
+err_pm:
+	pm_runtime_put(&fimc->pdev->dev);	
 done:
 	mutex_unlock(&fimc->lock);
 	return ret;
@@ -498,7 +504,7 @@ static int fimc_lite_close(struct file *file)
 	}
 
 	pm_runtime_put(&fimc->pdev->dev);
-
+	platform_sysmmu_off(&fimc->pdev->dev);
 	if (fimc->ref_count == 0)
 		vb2_queue_release(&fimc->vb_queue);
 
@@ -1459,13 +1465,16 @@ static int __devinit fimc_lite_probe(struct platform_device *pdev)
 	ret = pm_runtime_get_sync(&pdev->dev);
 	if (ret < 0)
 		goto err_sd;
-
+	ret = platform_sysmmu_on(&pdev->dev);
+	if (ret < 0)
+		goto err_pm;
 	fimc->alloc_ctx = vb2_dma_contig_init_ctx(&pdev->dev);
 	if (IS_ERR(fimc->alloc_ctx)) {
 		ret = PTR_ERR(fimc->alloc_ctx);
 		goto err_pm;
 	}
 	pm_runtime_put(&pdev->dev);
+	platform_sysmmu_off(&pdev->dev);
 
 	dev_dbg(&pdev->dev, "FIMC-LITE.%d registered successfully\n",
 		fimc->index);

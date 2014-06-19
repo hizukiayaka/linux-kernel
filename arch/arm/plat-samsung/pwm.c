@@ -36,7 +36,6 @@ struct pwm_device {
 	unsigned int		 duty_ns;
 
 	unsigned char		 tcon_base;
-	unsigned char		 running;
 	unsigned char		 use_count;
 	unsigned char		 pwm_id;
 };
@@ -116,7 +115,6 @@ int pwm_enable(struct pwm_device *pwm)
 
 	local_irq_restore(flags);
 
-	pwm->running = 1;
 	return 0;
 }
 
@@ -134,8 +132,6 @@ void pwm_disable(struct pwm_device *pwm)
 	__raw_writel(tcon, S3C2410_TCON);
 
 	local_irq_restore(flags);
-
-	pwm->running = 0;
 }
 
 EXPORT_SYMBOL(pwm_disable);
@@ -211,6 +207,8 @@ int pwm_config(struct pwm_device *pwm, int duty_ns, int period_ns)
 	} else
 		tin_ns = NS_IN_HZ / clk_get_rate(pwm->clk);
 
+	pwm->duty_ns = duty_ns;
+
 	/* Note, counters count down */
 
 	tcmp = duty_ns / tin_ns;
@@ -234,7 +232,10 @@ int pwm_config(struct pwm_device *pwm, int duty_ns, int period_ns)
 
 	tcon = __raw_readl(S3C2410_TCON);
 	tcon |= pwm_tcon_manulupdate(pwm);
-	tcon |= pwm_tcon_autoreload(pwm);
+	if (duty_ns)
+		tcon |= pwm_tcon_autoreload(pwm);
+	else
+		tcon &= ~pwm_tcon_autoreload(pwm);
 	__raw_writel(tcon, S3C2410_TCON);
 
 	tcon &= ~pwm_tcon_manulupdate(pwm);

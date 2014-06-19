@@ -10,6 +10,7 @@ config VIDEO_SAMSUNG_S5P_TV
 	bool "Samsung TV driver for S5P platform (experimental)"
 	depends on PLAT_S5P && PM_RUNTIME
 	depends on EXPERIMENTAL
+	select DMA_SHARED_BUFFER
 	default n
 	---help---
 	  Say Y here to enable selecting the TV output devices for
@@ -45,6 +46,13 @@ config VIDEO_SAMSUNG_S5P_HDMIPHY
 	  interface in S5P Samsung SoC. The driver can be compiled
 	  as module. It is an I2C driver, that exposes a V4L2
 	  subdev for use by other drivers.
+
+config VIDEO_SAMSUNG_S5P_HDMI_HDCP
+	bool "Enable HDCP in HDMI Driver"
+	depends on VIDEO_SAMSUNG_S5P_HDMI
+	default n
+	help
+	  Enables HDCP in HDMI driver.
 
 config VIDEO_SAMSUNG_S5P_SII9234
 	tristate "Samsung SII9234 Driver"
@@ -82,5 +90,19 @@ config VIDEO_SAMSUNG_S5P_MIXER_DEBUG
 	default n
 	help
 	  Enables debugging for Mixer driver.
+
+config VIDEO_SAMSUNG_S5P_HDMI_I2S
+	bool "Enable HDMI I2S"
+	depends on VIDEO_SAMSUNG_S5P_TV && SND_SAMSUNG_I2S
+	default y
+	help
+	  Enables HDMI I2S support.
+
+config VIDEO_SAMSUNG_S5P_HDMI_SPDIF
+	bool "Enable HDMI SPDIF"
+	depends on VIDEO_SAMSUNG_S5P_TV && SND_SAMSUNG_SPDIF
+	default y
+	help
+	  Enables HDMI SPDIF support.
 
 endif # VIDEO_SAMSUNG_S5P_TV

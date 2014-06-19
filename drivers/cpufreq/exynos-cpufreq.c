@@ -30,11 +30,89 @@ static struct cpufreq_freqs freqs;
 static unsigned int locking_frequency;
 static bool frequency_locked;
 static DEFINE_MUTEX(cpufreq_lock);
+static int lock_count=0;
 
 int exynos_verify_speed(struct cpufreq_policy *policy)
 {
 	return cpufreq_frequency_table_verify(policy,
 					      exynos_info->freq_table);
+}
+
+static int cpufreq_frequency_table_target_old(struct cpufreq_policy *policy,
+				   struct cpufreq_frequency_table *table,
+				   unsigned int target_freq,
+				   unsigned int relation,
+				   unsigned int *index)
+{
+	struct cpufreq_frequency_table optimal = {
+		.index = ~0,
+		.frequency = 0,
+	};
+	struct cpufreq_frequency_table suboptimal = {
+		.index = ~0,
+		.frequency = 0,
+	};
+	unsigned int i;
+
+	pr_debug("request for target %u kHz (relation: %u) for cpu %u\n",
+					target_freq, relation, policy->cpu);
+
+	switch (relation) {
+	case CPUFREQ_RELATION_H:
+		suboptimal.frequency = ~0;
+		break;
+	case CPUFREQ_RELATION_L:
+		optimal.frequency = ~0;
+		break;
+	}
+
+	if (!cpu_online(policy->cpu))
+		return -EINVAL;
+
+	for (i = 0; (table[i].frequency != CPUFREQ_TABLE_END); i++) {
+		unsigned int freq = table[i].frequency;
+		if (freq == CPUFREQ_ENTRY_INVALID)
+			continue;
+		switch (relation) {
+		case CPUFREQ_RELATION_H:
+			if (freq <= target_freq) {
+				if (freq >= optimal.frequency) {
+					optimal.frequency = freq;
+					optimal.index = i;
+				}
+			} else {
+				if (freq <= suboptimal.frequency) {
+					suboptimal.frequency = freq;
+					suboptimal.index = i;
+				}
+			}
+			break;
+		case CPUFREQ_RELATION_L:
+			if (freq >= target_freq) {
+				if (freq <= optimal.frequency) {
+					optimal.frequency = freq;
+					optimal.index = i;
+				}
+			} else {
+				if (freq >= suboptimal.frequency) {
+					suboptimal.frequency = freq;
+					suboptimal.index = i;
+				}
+			}
+			break;
+		}
+	}
+	if (optimal.index > i) {
+		if (suboptimal.index > i)
+			return -EINVAL;
+		*index = suboptimal.index;
+	} else
+		*index = optimal.index;
+
+	pr_debug("target is %u (%u kHz, %u)\n", *index, table[*index].frequency,
+		table[*index].index);
+
+	return 0;
 }
 
 unsigned int exynos_getspeed(unsigned int cpu)
@@ -62,7 +140,7 @@ static int exynos_target(struct cpufreq_policy *policy,
 		goto out;
 	}
 
-	if (cpufreq_frequency_table_target(policy, freq_table,
+	if (cpufreq_frequency_table_target_old(policy, freq_table,
 					   freqs.old, relation, &old_index)) {
 		ret = -EINVAL;
 		goto out;
@@ -132,6 +210,46 @@ static int exynos_cpufreq_resume(struct cpufreq_policy *policy)
 	return 0;
 }
 #endif
+
+void exynos_cpufreq_lock_freq(bool lock_en, unsigned int freq)
+{
+	struct cpufreq_policy *policy = cpufreq_cpu_get(0); /* boot CPU */
+	static unsigned int saved_freq;
+	static unsigned int temp;
+	mutex_lock(&cpufreq_lock);
+	if(lock_en) {
+		lock_count++;
+		if(lock_count>1)
+			goto out;
+
+		if(frequency_locked)
+			goto out;
+
+                if (freq) {
+			frequency_locked = true;
+			temp = locking_frequency;
+			locking_frequency = freq;
+			saved_freq = exynos_getspeed(0);
+                        mutex_unlock(&cpufreq_lock);
+                        exynos_target(policy, freq,
+                                      CPUFREQ_RELATION_H);
+                        mutex_lock(&cpufreq_lock);
+                }
+	} else {
+		lock_count--;
+		if(lock_count>0)
+			goto out;
+		locking_frequency = saved_freq;
+		mutex_unlock(&cpufreq_lock);
+		exynos_target(policy, saved_freq,
+				CPUFREQ_RELATION_H);
+		mutex_lock(&cpufreq_lock);
+		locking_frequency = temp;
+		frequency_locked = false;	
+	}
+out:
+	mutex_unlock(&cpufreq_lock);
+}
 
 /**
  * exynos_cpufreq_pm_notifier - block CPUFREQ's activities in suspend-resume

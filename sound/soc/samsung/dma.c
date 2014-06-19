@@ -44,8 +44,8 @@ static const struct snd_pcm_hardware dma_hardware = {
 	.channels_min		= 2,
 	.channels_max		= 2,
 	.buffer_bytes_max	= 128*1024,
-	.period_bytes_min	= PAGE_SIZE,
-	.period_bytes_max	= PAGE_SIZE*2,
+	.period_bytes_min	= 128,
+	.period_bytes_max	= PAGE_SIZE*4,
 	.periods_min		= 2,
 	.periods_max		= 128,
 	.fifo_size		= 32,
@@ -74,7 +74,7 @@ static void dma_enqueue(struct snd_pcm_substream *substream)
 	struct runtime_data *prtd = substream->runtime->private_data;
 	dma_addr_t pos = prtd->dma_pos;
 	unsigned int limit;
-	struct samsung_dma_prep_info dma_info;
+	struct samsung_dma_prep dma_info;
 
 	pr_debug("Entered %s\n", __func__);
 
@@ -146,7 +146,8 @@ static int dma_hw_params(struct snd_pcm_substream *substream,
 	unsigned long totbytes = params_buffer_bytes(params);
 	struct s3c_dma_params *dma =
 		snd_soc_dai_get_dma_data(rtd->cpu_dai, substream);
-	struct samsung_dma_info dma_info;
+	struct samsung_dma_req req;
+	struct samsung_dma_config config;
 
 	pr_debug("Entered %s\n", __func__);
 
@@ -166,16 +167,17 @@ static int dma_hw_params(struct snd_pcm_substream *substream,
 
 		prtd->params->ops = samsung_dma_get_ops();
 
-		dma_info.cap = (samsung_dma_has_circular() ?
+		req.cap = (samsung_dma_has_circular() ?
 			DMA_CYCLIC : DMA_SLAVE);
-		dma_info.client = prtd->params->client;
-		dma_info.direction =
+		req.client = prtd->params->client;
+		config.direction =
 			(substream->stream == SNDRV_PCM_STREAM_PLAYBACK
 			? DMA_MEM_TO_DEV : DMA_DEV_TO_MEM);
-		dma_info.width = prtd->params->dma_size;
-		dma_info.fifo = prtd->params->dma_addr;
+		config.width = prtd->params->dma_size;
+		config.fifo = prtd->params->dma_addr;
 		prtd->params->ch = prtd->params->ops->request(
-				prtd->params->channel, &dma_info);
+				prtd->params->channel, &req);
+		prtd->params->ops->config(prtd->params->ch, &config);
 	}
 
 	snd_pcm_set_runtime_buffer(substream, &substream->dma_buffer);
@@ -457,7 +459,17 @@ static struct platform_driver asoc_dma_driver = {
 	.remove = __devexit_p(samsung_asoc_platform_remove),
 };
 
-module_platform_driver(asoc_dma_driver);
+static int __init samsung_asoc_init(void)
+{
+	return platform_driver_register(&asoc_dma_driver);
+}
+module_init(samsung_asoc_init);
+
+static void __exit samsung_asoc_exit(void)
+{
+	platform_driver_unregister(&asoc_dma_driver);
+}
+module_exit(samsung_asoc_exit);
 
 MODULE_AUTHOR("Ben Dooks, <ben@simtec.co.uk>");
 MODULE_DESCRIPTION("Samsung ASoC DMA Driver");

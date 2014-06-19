@@ -10,6 +10,8 @@
  * published by the Free Software Foundation.
 */
 
+#ifndef EXYNOS_CPUFREQ_H
+#define EXYNOS_CPUFREQ_H
 enum cpufreq_level_index {
 	L0, L1, L2, L3, L4,
 	L5, L6, L7, L8, L9,
@@ -31,6 +33,17 @@ struct exynos_dvfs_info {
 	bool (*need_apll_change)(unsigned int, unsigned int);
 };
 
+#define MAX_CPU_FREQ 1600000
+#ifdef CONFIG_ARM_EXYNOS_CPUFREQ
+void exynos_cpufreq_lock_freq(bool lock_en, unsigned int freq);
+#else
+static void exynos_cpufreq_lock_freq(bool lock_en, unsigned int freq)
+{
+	return;
+}
+#endif
+
 extern int exynos4210_cpufreq_init(struct exynos_dvfs_info *);
 extern int exynos4x12_cpufreq_init(struct exynos_dvfs_info *);
 extern int exynos5250_cpufreq_init(struct exynos_dvfs_info *);
+#endif  /* EXYNOS_CPUFREQ_H */

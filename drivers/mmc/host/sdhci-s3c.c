@@ -292,8 +292,12 @@ static void sdhci_cmu_set_clock(struct sdhci_host *host, unsigned int clock)
 	u16 clk = 0;
 
 	/* don't bother if the clock is going off */
-	if (clock == 0)
+	if (clock == 0) {
+		clk = sdhci_readw(host, SDHCI_CLOCK_CONTROL);
+		clk &= ~SDHCI_CLOCK_CARD_EN;
+		sdhci_writew(host, clk, SDHCI_CLOCK_CONTROL);
 		return;
+	}
 
 	sdhci_s3c_set_clock(host, clock);
 
@@ -398,7 +402,7 @@ static void sdhci_s3c_setup_card_detect_gpio(struct sdhci_s3c *sc)
 	struct s3c_sdhci_platdata *pdata = sc->pdata;
 	struct device *dev = &sc->pdev->dev;
 
-	if (gpio_request(pdata->ext_cd_gpio, "SDHCI EXT CD") == 0) {
+	if (gpio_request(pdata->ext_cd_gpio, "SDHCI EXT CD") == 0){
 		sc->ext_cd_gpio = pdata->ext_cd_gpio;
 		sc->ext_cd_irq = gpio_to_irq(pdata->ext_cd_gpio);
 		if (sc->ext_cd_irq &&
@@ -466,7 +470,7 @@ static int __devinit sdhci_s3c_probe(struct platform_device *pdev)
 	sc->host = host;
 	sc->pdev = pdev;
 	sc->pdata = pdata;
-	sc->ext_cd_gpio = -1; /* invalid gpio number */
+	sc->ext_cd_gpio = pdata->ext_cd_gpio;
 
 	platform_set_drvdata(pdev, host);
 
@@ -555,6 +559,9 @@ static int __devinit sdhci_s3c_probe(struct platform_device *pdev)
 
 	if (pdata->cd_type == S3C_SDHCI_CD_NONE ||
 	    pdata->cd_type == S3C_SDHCI_CD_PERMANENT)
+		host->quirks |= SDHCI_QUIRK_BROKEN_CARD_DETECTION;
+
+	if (pdata->cd_type == S3C_SDHCI_CD_GPIO)
 		host->quirks |= SDHCI_QUIRK_BROKEN_CARD_DETECTION;
 
 	if (pdata->cd_type == S3C_SDHCI_CD_PERMANENT)
@@ -675,15 +682,49 @@ static int __devexit sdhci_s3c_remove(struct platform_device *pdev)
 static int sdhci_s3c_suspend(struct device *dev)
 {
 	struct sdhci_host *host = dev_get_drvdata(dev);
+	struct sdhci_s3c *sc = sdhci_priv(host);
+	struct s3c_sdhci_platdata *pdata = sc->pdata;
+	int err = 0;
 
-	return sdhci_suspend_host(host);
+	err = sdhci_suspend_host(host);
+	if (err < 0)
+		return err;
+
+	if (pdata && pdata->cd_type == S3C_SDHCI_CD_EXTERNAL && pdata->ext_cd_cleanup)
+		pdata->ext_cd_cleanup(&sdhci_s3c_notify_change);
+
+	if (sc->ext_cd_irq)
+		free_irq(sc->ext_cd_irq, sc);
+
+	return 0;
 }
 
 static int sdhci_s3c_resume(struct device *dev)
 {
 	struct sdhci_host *host = dev_get_drvdata(dev);
+	struct sdhci_s3c *sc = sdhci_priv(host);
+	struct s3c_sdhci_platdata *pdata = sc->pdata;
+	int err = 0;
 
-	return sdhci_resume_host(host);
+	err =  sdhci_resume_host(host);
+	if (err < 0)
+		return err;
+
+	if (sc->ext_cd_irq && pdata && pdata->cd_type == S3C_SDHCI_CD_GPIO) {
+		if (request_threaded_irq(sc->ext_cd_irq, NULL,
+				sdhci_s3c_gpio_card_detect_thread,
+				IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
+				dev_name(dev), sc) == 0) {
+			int status = gpio_get_value(sc->ext_cd_gpio);
+			if (pdata->ext_cd_gpio_invert)
+				status = !status;
+			sdhci_s3c_notify_change(sc->pdev, status);
+		} else {
+			dev_warn(dev, "cannot request irq for card detect\n");
+			sc->ext_cd_irq = 0;
+		}
+	}
+	return 0;
 }
 #endif
 

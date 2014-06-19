@@ -46,8 +46,10 @@ static void samsung_bl_exit(struct device *dev)
 			container_of(dev->parent, struct platform_device, dev);
 	struct samsung_bl_gpio_info *bl_gpio_info =
 			timer_dev->dev.platform_data;
-
+	
 	s3c_gpio_cfgpin(bl_gpio_info->no, S3C_GPIO_OUTPUT);
+	/* Set the GPIO DAT  register to 0x0 */
+	gpio_set_value(bl_gpio_info->no,0);
 	gpio_free(bl_gpio_info->no);
 }
 

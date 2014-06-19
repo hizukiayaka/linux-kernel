@@ -19,9 +19,11 @@
 #include <linux/serial_core.h>
 #include <linux/of.h>
 #include <linux/of_irq.h>
+#include <linux/of_platform.h>
 #include <linux/export.h>
 #include <linux/irqdomain.h>
 #include <linux/of_address.h>
+#include <linux/delay.h>
 
 #include <asm/proc-fns.h>
 #include <asm/exception.h>
@@ -35,6 +37,7 @@
 #include <mach/regs-pmu.h>
 #include <mach/regs-gpio.h>
 #include <mach/pmu.h>
+#include <mach/smc.h>
 
 #include <plat/cpu.h>
 #include <plat/clock.h>
@@ -179,20 +182,30 @@ static struct map_desc exynos4_iodesc[] __initdata = {
 		.length		= SZ_4K,
 		.type		= MT_DEVICE,
 	}, {
-		.virtual	= (unsigned long)S5P_VA_DMC0,
-		.pfn		= __phys_to_pfn(EXYNOS4_PA_DMC0),
-		.length		= SZ_64K,
-		.type		= MT_DEVICE,
-	}, {
-		.virtual	= (unsigned long)S5P_VA_DMC1,
-		.pfn		= __phys_to_pfn(EXYNOS4_PA_DMC1),
-		.length		= SZ_64K,
-		.type		= MT_DEVICE,
-	}, {
 		.virtual	= (unsigned long)S3C_VA_USB_HSPHY,
 		.pfn		= __phys_to_pfn(EXYNOS4_PA_HSPHY),
 		.length		= SZ_4K,
 		.type		= MT_DEVICE,
+	}, {
+		.virtual        = (unsigned long)S5P_VA_GPIO1,
+		.pfn            = __phys_to_pfn(EXYNOS4_PA_GPIO1),
+		.length         = SZ_4K,
+		.type           = MT_DEVICE,
+	}, {
+		.virtual        = (unsigned long)S5P_VA_GPIO2,
+		.pfn            = __phys_to_pfn(EXYNOS4_PA_GPIO2),
+		.length         = SZ_4K,
+		.type           = MT_DEVICE,
+	}, {
+		.virtual        = (unsigned long)S5P_VA_GPIO3,
+		.pfn            = __phys_to_pfn(EXYNOS4_PA_GPIO3),
+		.length         = SZ_256,
+		.type           = MT_DEVICE,
+	}, {
+		.virtual        = (unsigned long)S5P_VA_AUDSS,
+		.pfn            = __phys_to_pfn(EXYNOS4_PA_AUDSS),
+		.length         = SZ_4K,
+		.type           = MT_DEVICE,
 	},
 };
 
@@ -212,6 +225,57 @@ static struct map_desc exynos4_iodesc1[] __initdata = {
 		.length		= SZ_4K,
 		.type		= MT_DEVICE,
 	},
+};
+
+static struct map_desc exynos4xxx_iodesc[] __initdata = {
+	{
+		.virtual	= (unsigned long)S5P_VA_DMC0,
+		.pfn		= __phys_to_pfn(EXYNOS4_PA_DMC0),
+		.length		= SZ_64K,
+		.type		= MT_DEVICE,
+	}, {
+		.virtual	= (unsigned long)S5P_VA_DMC1,
+		.pfn		= __phys_to_pfn(EXYNOS4_PA_DMC1),
+		.length		= SZ_64K,
+		.type		= MT_DEVICE,
+	}
+};
+
+static struct map_desc exynos4412_iodesc[] __initdata = {
+#ifndef CONFIG_ARM_TRUSTZONE
+	{
+		.virtual	= (unsigned long)S5P_VA_DMC0,
+		.pfn		= __phys_to_pfn(EXYNOS4412_PA_DMC0),
+		.length		= SZ_64K,
+		.type		= MT_DEVICE,
+	}, {
+		.virtual	= (unsigned long)S5P_VA_DMC1,
+		.pfn		= __phys_to_pfn(EXYNOS4412_PA_DMC1),
+		.length		= SZ_64K,
+		.type		= MT_DEVICE,
+	},
+#endif
+	{
+		.virtual        = (unsigned long)S5P_VA_PPMU_CPU,
+		.pfn            = __phys_to_pfn(EXYNOS4_PA_PPMU_CPU),
+		.length         = SZ_8K,
+		.type           = MT_DEVICE,
+	},{
+		.virtual        = (unsigned long)S5P_VA_PPMU_DMC0,
+		.pfn            = __phys_to_pfn(EXYNOS4_PA_PPMU_DMC0),
+		.length         = SZ_8K,
+		.type           = MT_DEVICE,
+	},{
+		.virtual        = (unsigned long)S5P_VA_PPMU_DMC1,
+		.pfn            = __phys_to_pfn(EXYNOS4_PA_PPMU_DMC1),
+		.length         = SZ_8K,
+		.type           = MT_DEVICE,
+	},{
+		.virtual	= (unsigned long)S5P_VA_SYSRAM_NS,
+		.pfn		= __phys_to_pfn(EXYNOS4_PA_SYSRAM_NS),
+		.length		= SZ_4K,
+		.type		= MT_DEVICE,
+	}
 };
 
 static struct map_desc exynos5_iodesc[] __initdata = {
@@ -280,7 +344,12 @@ static struct map_desc exynos5_iodesc[] __initdata = {
 
 void exynos4_restart(char mode, const char *cmd)
 {
+	int count = 3;
+
+	while(count --) {
 	__raw_writel(0x1, S5P_SWRESET);
+		mdelay(500);
+	}
 }
 
 void exynos5_restart(char mode, const char *cmd)
@@ -320,6 +389,11 @@ static void __init exynos4_map_io(void)
 		iotable_init(exynos4_iodesc0, ARRAY_SIZE(exynos4_iodesc0));
 	else
 		iotable_init(exynos4_iodesc1, ARRAY_SIZE(exynos4_iodesc1));
+
+	if (soc_is_exynos4412())
+		iotable_init(exynos4412_iodesc, ARRAY_SIZE(exynos4412_iodesc));
+	else
+		iotable_init(exynos4xxx_iodesc, ARRAY_SIZE(exynos4xxx_iodesc));
 
 	/* initialize device information early */
 	exynos4_default_sdhci0();
@@ -540,7 +614,8 @@ static struct irq_domain_ops combiner_irq_domain_ops = {
 	.map	= combiner_irq_domain_map,
 };
 
-void __init combiner_init(void __iomem *combiner_base, struct device_node *np)
+static void __init combiner_init(void __iomem *combiner_base,
+				 struct device_node *np)
 {
 	int i, irq, irq_base;
 	unsigned int max_nr, nr_irq;
@@ -658,6 +733,15 @@ static int __init exynos_core_init(void)
 }
 core_initcall(exynos_core_init);
 
+#ifdef CONFIG_ARM_TRUSTZONE
+#if defined(CONFIG_PL310_ERRATA_588369) || defined(CONFIG_PL310_ERRATA_727915)
+static void exynos4_l2x0_set_debug(unsigned long val)
+{
+	exynos_smc(SMC_CMD_L2X0DEBUG, val, 0, 0);
+}
+#endif
+#endif
+
 #ifdef CONFIG_CACHE_L2X0
 static int __init exynos4_l2x0_cache_init(void)
 {
@@ -689,6 +773,16 @@ static int __init exynos4_l2x0_cache_init(void)
 
 		l2x0_regs_phys = virt_to_phys(&l2x0_saved_regs);
 
+#ifdef CONFIG_ARM_TRUSTZONE
+		exynos_smc(SMC_CMD_L2X0SETUP1, l2x0_saved_regs.tag_latency,
+					       l2x0_saved_regs.data_latency,
+					       l2x0_saved_regs.prefetch_ctrl);
+		exynos_smc(SMC_CMD_L2X0SETUP2, l2x0_saved_regs.pwr_ctrl,
+					       L2_AUX_VAL,
+					       L2_AUX_MASK);
+		exynos_smc(SMC_CMD_L2X0INVALL, 0, 0, 0);
+		exynos_smc(SMC_CMD_L2X0CTRL, 1, 0, 0);
+#else
 		__raw_writel(l2x0_saved_regs.tag_latency,
 				S5P_VA_L2CC + L2X0_TAG_LATENCY_CTRL);
 		__raw_writel(l2x0_saved_regs.data_latency,
@@ -701,41 +795,22 @@ static int __init exynos4_l2x0_cache_init(void)
 		/* L2X0 Power Control */
 		__raw_writel(l2x0_saved_regs.pwr_ctrl,
 				S5P_VA_L2CC + L2X0_POWER_CTRL);
-
+#endif
 		clean_dcache_area(&l2x0_regs_phys, sizeof(unsigned long));
 		clean_dcache_area(&l2x0_saved_regs, sizeof(struct l2x0_regs));
 	}
 
 	l2x0_init(S5P_VA_L2CC, L2_AUX_VAL, L2_AUX_MASK);
+
+#ifdef CONFIG_ARM_TRUSTZONE
+#if defined(CONFIG_PL310_ERRATA_588369) || defined(CONFIG_PL310_ERRATA_727915)
+	outer_cache.set_debug = exynos4_l2x0_set_debug;
+#endif
+#endif
 	return 0;
 }
 early_initcall(exynos4_l2x0_cache_init);
 #endif
-
-static int __init exynos5_l2_cache_init(void)
-{
-	unsigned int val;
-
-	if (!soc_is_exynos5250())
-		return 0;
-
-	asm volatile("mrc p15, 0, %0, c1, c0, 0\n"
-		     "bic %0, %0, #(1 << 2)\n"	/* cache disable */
-		     "mcr p15, 0, %0, c1, c0, 0\n"
-		     "mrc p15, 1, %0, c9, c0, 2\n"
-		     : "=r"(val));
-
-	val |= (1 << 9) | (1 << 5) | (2 << 6) | (2 << 0);
-
-	asm volatile("mcr p15, 1, %0, c9, c0, 2\n" : : "r"(val));
-	asm volatile("mrc p15, 0, %0, c1, c0, 0\n"
-		     "orr %0, %0, #(1 << 2)\n"	/* cache enable */
-		     "mcr p15, 0, %0, c1, c0, 0\n"
-		     : : "r"(val));
-
-	return 0;
-}
-early_initcall(exynos5_l2_cache_init);
 
 static int __init exynos_init(void)
 {
@@ -891,6 +966,7 @@ static int exynos_irq_eint_set_type(struct irq_data *data, unsigned int type)
 	int shift;
 	u32 ctrl, mask;
 	u32 newvalue = 0;
+	struct irq_desc *desc = irq_to_desc(data->irq);
 
 	switch (type) {
 	case IRQ_TYPE_EDGE_RISING:
@@ -932,6 +1008,11 @@ static int exynos_irq_eint_set_type(struct irq_data *data, unsigned int type)
 		s3c_gpio_cfgpin(exynos5_irq_to_gpio(data->irq), S3C_GPIO_SFN(0xf));
 	else
 		s3c_gpio_cfgpin(exynos4_irq_to_gpio(data->irq), S3C_GPIO_SFN(0xf));
+	
+	if (type & IRQ_TYPE_EDGE_BOTH)
+		desc->handle_irq = handle_edge_irq;
+	else
+		desc->handle_irq = handle_level_irq;
 
 	return 0;
 }

@@ -242,7 +242,7 @@ int usb_add_config(struct usb_composite_dev *,
 		struct usb_configuration *,
 		int (*)(struct usb_configuration *));
 
-void usb_remove_config(struct usb_composite_dev *,
+int usb_remove_config(struct usb_composite_dev *,
 		struct usb_configuration *);
 
 /**

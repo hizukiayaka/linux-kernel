@@ -23,6 +23,10 @@ source "drivers/gpu/drm/Kconfig"
 
 source "drivers/gpu/stub/Kconfig"
 
+source "drivers/gpu/arm/Kconfig"
+
+source "drivers/gpu/ion/Kconfig"
+
 config VGASTATE
        tristate
        default n
@@ -362,6 +366,19 @@ config FB_SA1100
 
 	  If you plan to use the LCD display with your SA-1100 system, say
 	  Y here.
+
+config LCD_LTE480WV
+         bool "LTE480WV"
+         depends on MACH_SMDKV310 || MACH_SMDKC210 || MACH_SMDKV210 || MACH_SMDKC110
+         help
+           This enables support for Samsung LTE480WV 4.8" WVGA LCD panel
+ 
+config  LCD_WA101S
+         bool "WA101S"
+         depends on MACH_SMDKV310 || MACH_SMDKC210 || MACH_SMDK4412
+         select TOUCHSCREEN_S5PV310_MT
+         help
+           This enables support for 10.1" 1366*768 LCD panel
 
 config FB_IMX
 	tristate "Freescale i.MX LCD support"
@@ -2052,6 +2069,20 @@ config FB_S3C
 	  currently only have two.
 
 	  Currently the support is only for the S3C6400 and S3C6410 SoCs.
+
+config FB_S3C_NR_BUFFERS
+	int "Numbers of frame buffers (1-3)"
+	depends on FB_S3C
+	default "1"
+	help
+	  This indicates the number of buffers for pan display.
+	  1 means no pan display and
+	  2 means the double size of video buffer will be allocated for default window.
+
+config FB_S3C_ORDER_BGR
+	bool "RGB interface output order: B->G->R"
+	depends on FB_S3C
+	default y if ANDROID
 
 config FB_S3C_DEBUG_REGWRITE
        bool "Debug register writes"

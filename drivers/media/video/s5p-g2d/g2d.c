@@ -77,6 +77,17 @@ static struct g2d_frame def_frame = {
 	.bottom		= DEFAULT_HEIGHT,
 };
 
+struct mask_ctrl {
+	int val;
+	int stride;
+	unsigned int msk_buf;
+};
+
+static void *s5p_g2d_mask_buf;
+dma_addr_t s5p_g2d_mask_phys;
+static unsigned char *s5p_g2d_mask_virt;
+struct bs_info *bs;
+
 static struct g2d_fmt *find_fmt(struct v4l2_format *f)
 {
 	unsigned int i;
@@ -178,7 +189,10 @@ static int g2d_s_ctrl(struct v4l2_ctrl *ctrl)
 {
 	struct g2d_ctx *ctx = container_of(ctrl->handler, struct g2d_ctx,
 								ctrl_handler);
+	struct v4l2_device      *v4l2_dev;
+	struct mask_ctrl *m_ctrl = NULL;
 	unsigned long flags;
+	int ret = 0;
 
 	spin_lock_irqsave(&ctx->dev->ctrl_lock, flags);
 	switch (ctrl->id) {
@@ -193,6 +207,111 @@ static int g2d_s_ctrl(struct v4l2_ctrl *ctrl)
 		ctx->flip = ctx->ctrl_hflip->val | (ctx->ctrl_vflip->val << 1);
 		break;
 
+	case V4L2_CID_ROTATE:
+		if (ctrl->val == 90) {
+			ctx->rotation = (ROTATE_SRC_90 | ROTATE_MASK_90);
+		} else if (ctrl->val == 180) {
+			ctx->flip = SRC_XY_DIR_NEGATIVE;
+		} else if (ctrl->val == 270) {
+			ctx->flip = SRC_XY_DIR_NEGATIVE;
+			ctx->rotation = (ROTATE_SRC_90 | ROTATE_MASK_90);
+		} else {
+			ctx->rotation = 0;
+		}
+		break;
+
+	case V4L2_CID_ALPHA_COMPONENT:
+		ctrl->val &= 0xff;
+		ctx->alpha = ctrl->val
+			| (ctrl->val << 8) /* B */
+			| (ctrl->val << 16) /* G */
+			| (ctrl->val << 24); /* R */
+		break;
+
+	case S5P_G2D_SOLID_FILL:
+		ctx->color = ctrl->val;
+		break;
+
+	case S5P_G2D_MASK:
+		if (ctrl->val) {
+			v4l2_dev = &ctx->dev->v4l2_dev;
+			/* keeping the mask image same as destination */
+			memcpy(&ctx->msk, &ctx->out, sizeof(ctx->out));
+			/* buffer for masking */
+			s5p_g2d_mask_buf =
+				vb2_dma_contig_memops.alloc(ctx->alloc_ctx,
+							ctx->msk.size);
+			if (IS_ERR(s5p_g2d_mask_buf)) {
+				s5p_g2d_mask_buf = NULL;
+				v4l2_err(v4l2_dev,
+				"Allocating mask buffer failed\n");
+				return -ENOMEM;
+			}
+			s5p_g2d_mask_phys = (*(dma_addr_t *)
+				vb2_dma_contig_memops.cookie(s5p_g2d_mask_buf));
+			if (!s5p_g2d_mask_phys) {
+				v4l2_err(v4l2_dev,
+				"memory remap to phys failed\n");
+				vb2_dma_contig_memops.put(s5p_g2d_mask_buf);
+				s5p_g2d_mask_phys = 0;
+				s5p_g2d_mask_buf = NULL;
+				return -EIO;
+			}
+			s5p_g2d_mask_virt =
+				vb2_dma_contig_memops.vaddr(s5p_g2d_mask_buf);
+			if (!s5p_g2d_mask_virt) {
+				v4l2_err(v4l2_dev, "memory remap failed\n");
+				vb2_dma_contig_memops.put(s5p_g2d_mask_buf);
+				s5p_g2d_mask_phys = 0;
+				s5p_g2d_mask_buf = NULL;
+				return -EIO;
+			}
+
+			m_ctrl = (struct mask_ctrl *) ctrl->val;
+
+			ret = copy_from_user((struct mask_ctrl *)m_ctrl,
+				(struct mask_ctrl __user *)ctrl->val,
+						sizeof(struct mask_ctrl));
+			if (ret)
+				v4l2_err(v4l2_dev, "copy from user failed\n");
+
+			ctx->mask = m_ctrl->val;
+			ctx->msk.stride = m_ctrl->stride;
+
+			ret = copy_from_user(s5p_g2d_mask_virt,
+				(char __user *)m_ctrl->msk_buf, ctx->msk.size);
+			if (ret)
+				v4l2_err(v4l2_dev,
+				"copy mask buf from user failed %d\n", ret);
+			ctx->en_msk = true;
+		}
+		break;
+
+	case S5P_G2D_SCALE:
+		ctx->smode = ctrl->val;
+		break;
+
+	case S5P_G2D_DITHER:
+		if (ctrl->val)
+			ctx->dither = true;
+		break;
+
+	case S5P_G2D_BLUESCREEN:
+		if (ctrl->val) {
+			bs = (struct bs_info *) ctrl->val;
+
+			ret = copy_from_user((struct bs_info *)bs,
+				(struct bs_info __user *)ctrl->val,
+						sizeof(struct bs_info));
+			if (ret)
+				v4l2_err(v4l2_dev, "copy from user failed\n");
+			ctx->en_bs = true;
+		}
+		break;
+
+	case S5P_G2D_PORTER_DUFF:
+		ctx->porter_duff = ctrl->val;
+		break;
 	}
 	spin_unlock_irqrestore(&ctx->dev->ctrl_lock, flags);
 	return 0;
@@ -200,6 +319,102 @@ static int g2d_s_ctrl(struct v4l2_ctrl *ctrl)
 
 static const struct v4l2_ctrl_ops g2d_ctrl_ops = {
 	.s_ctrl		= g2d_s_ctrl,
+};
+
+struct v4l2_ctrl_config solid_color_cfg = {
+	.ops = &g2d_ctrl_ops,
+	.id = S5P_G2D_SOLID_FILL,
+	.name = "solid color fill",
+	.type = V4L2_CTRL_TYPE_INTEGER,
+	.flags = 0,
+	.min = -1,
+	.max = 0x00ffffff,
+	.step = 1,
+	.def = -1,
+	.menu_skip_mask = 0,
+	.qmenu = NULL,
+	.qmenu_int = NULL,
+	.is_private = 0,
+};
+
+struct v4l2_ctrl_config mask_cfg = {
+	.ops = &g2d_ctrl_ops,
+	.id = S5P_G2D_MASK,
+	.name = "masking",
+	.type = V4L2_CTRL_TYPE_INTEGER,
+	.flags = 0,
+	.min = 0,
+	.max = 0x7fffffff,
+	.step = 1,
+	.def = 0,
+	.menu_skip_mask = 0,
+	.qmenu = NULL,
+	.qmenu_int = NULL,
+	.is_private = 0,
+};
+
+struct v4l2_ctrl_config scale_cfg = {
+	.ops = &g2d_ctrl_ops,
+	.id = S5P_G2D_SCALE,
+	.name = "scaling",
+	.type = V4L2_CTRL_TYPE_INTEGER,
+	.flags = 0,
+	.min = 0,
+	.max = 2,
+	.step = 1,
+	.def = 0,
+	.menu_skip_mask = 0,
+	.qmenu = NULL,
+	.qmenu_int = NULL,
+	.is_private = 0,
+};
+
+struct v4l2_ctrl_config dither_cfg = {
+	.ops = &g2d_ctrl_ops,
+	.id = S5P_G2D_DITHER,
+	.name = "dithering",
+	.type = V4L2_CTRL_TYPE_INTEGER,
+	.flags = 0,
+	.min = 0,
+	.max = 1,
+	.step = 1,
+	.def = 0,
+	.menu_skip_mask = 0,
+	.qmenu = NULL,
+	.qmenu_int = NULL,
+	.is_private = 0,
+};
+
+struct v4l2_ctrl_config bs_cfg = {
+	.ops = &g2d_ctrl_ops,
+	.id = S5P_G2D_BLUESCREEN,
+	.name = "blue screen",
+	.type = V4L2_CTRL_TYPE_INTEGER,
+	.flags = 0,
+	.min = 0,
+	.max = 0x7fffffff,
+	.step = 1,
+	.def = 0,
+	.menu_skip_mask = 0,
+	.qmenu = NULL,
+	.qmenu_int = NULL,
+	.is_private = 0,
+};
+
+struct v4l2_ctrl_config porterduff_cfg = {
+	.ops = &g2d_ctrl_ops,
+	.id = S5P_G2D_PORTER_DUFF,
+	.name = "porterduff",
+	.type = V4L2_CTRL_TYPE_INTEGER,
+	.flags = 0,
+	.min = 0,
+	.max = MAX_FIMG2D_BLIT_OP,
+	.step = 1,
+	.def = 0,
+	.menu_skip_mask = 0,
+	.qmenu = NULL,
+	.qmenu_int = NULL,
+	.is_private = 0,
 };
 
 static int g2d_setup_ctrls(struct g2d_ctx *ctx)
@@ -213,6 +428,19 @@ static int g2d_setup_ctrls(struct g2d_ctx *ctx)
 
 	ctx->ctrl_vflip = v4l2_ctrl_new_std(&ctx->ctrl_handler, &g2d_ctrl_ops,
 						V4L2_CID_VFLIP, 0, 1, 1, 0);
+
+	v4l2_ctrl_new_std(&ctx->ctrl_handler, &g2d_ctrl_ops, V4L2_CID_ROTATE,
+						0, 360, 90, 0);
+
+	v4l2_ctrl_new_std(&ctx->ctrl_handler, &g2d_ctrl_ops,
+			V4L2_CID_ALPHA_COMPONENT, 0, 255, 1, DEFAULT_ALPHA);
+
+	v4l2_ctrl_new_custom(&ctx->ctrl_handler, &solid_color_cfg, NULL);
+	v4l2_ctrl_new_custom(&ctx->ctrl_handler, &mask_cfg, NULL);
+	v4l2_ctrl_new_custom(&ctx->ctrl_handler, &scale_cfg, NULL);
+	v4l2_ctrl_new_custom(&ctx->ctrl_handler, &dither_cfg, NULL);
+	v4l2_ctrl_new_custom(&ctx->ctrl_handler, &bs_cfg, NULL);
+	v4l2_ctrl_new_custom(&ctx->ctrl_handler, &porterduff_cfg, NULL);
 
 	v4l2_ctrl_new_std_menu(
 		&ctx->ctrl_handler,
@@ -247,10 +475,20 @@ static int g2d_open(struct file *file)
 	/* Set default formats */
 	ctx->in		= def_frame;
 	ctx->out	= def_frame;
+	ctx->alpha	= DEFAULT_ALPHA;
+	ctx->en_msk	= false;
+	ctx->en_bs	= false;
 
 	ctx->m2m_ctx = v4l2_m2m_ctx_init(dev->m2m_dev, ctx, &queue_init);
 	if (IS_ERR(ctx->m2m_ctx)) {
 		ret = PTR_ERR(ctx->m2m_ctx);
+		kfree(ctx);
+		return ret;
+	}
+
+	ctx->alloc_ctx = vb2_dma_contig_init_ctx(dev->g2d);
+	if (IS_ERR_OR_NULL(dev->alloc_ctx)) {
+		ret = PTR_ERR(dev->alloc_ctx);
 		kfree(ctx);
 		return ret;
 	}
@@ -274,6 +512,8 @@ static int g2d_release(struct file *file)
 	struct g2d_dev *dev = video_drvdata(file);
 	struct g2d_ctx *ctx = fh2ctx(file->private_data);
 
+	if (ctx->en_msk)
+		vb2_dma_contig_memops.put(s5p_g2d_mask_buf);
 	v4l2_ctrl_handler_free(&ctx->ctrl_handler);
 	v4l2_fh_del(&ctx->fh);
 	v4l2_fh_exit(&ctx->fh);
@@ -395,6 +635,11 @@ static int vidioc_s_fmt(struct file *file, void *prv, struct v4l2_format *f)
 	frm->bottom	= frm->height;
 	frm->fmt	= fmt;
 	frm->stride	= f->fmt.pix.bytesperline;
+	 /*FIXME Should come from user */
+	if (f->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
+		frm->type	= 0;
+	else
+		frm->type	= 1;
 	return 0;
 }
 
@@ -578,8 +823,44 @@ static void device_run(void *prv)
 	g2d_set_dst_size(dev, &ctx->out);
 	g2d_set_dst_addr(dev, vb2_dma_contig_plane_dma_addr(dst, 0));
 
+	if (((ctx->in.width !=  ctx->out.width)
+		|| (ctx->in.height != ctx->out.height)) && ctx->smode)
+		g2d_set_src_scaling(dev, &ctx->in, &ctx->out);
+
 	g2d_set_rop4(dev, ctx->rop);
 	g2d_set_flip(dev, ctx->flip);
+	g2d_set_rotation(dev, ctx->rotation);
+
+	if (ctx->color >= 0) {
+		g2d_set_color_fill(dev, ctx->color);
+		cmd |= SOLID_FILL;
+	}
+
+	if ((ctx->alpha && DEFAULT_ALPHA <= DEFAULT_ALPHA) || (ctx->porter_duff > 0)) {
+		g2d_set_alpha(dev, ctx->alpha);
+		cmd |= ALPHA_BLEND;
+		g2d_set_alpha_composite(dev, ctx->porter_duff, ctx->alpha & 0xff);
+		cmd |= CLIP;
+	}
+
+	if (ctx->en_msk) {
+		g2d_set_mask_size(dev, &ctx->msk);
+		g2d_set_mask_addr(dev, s5p_g2d_mask_phys);
+		g2d_set_mask(dev, ctx->mask);
+		cmd |= NORMAL_MASK;
+	}
+	g2d_set_clip_size(dev, &ctx->out);
+
+	if (ctx->dither)
+		cmd |= DITHER;
+
+	if (ctx->en_bs) {
+		g2d_set_bluescreen(dev, bs);
+		if (bs->bs_mode == 1)
+			cmd |= TRANSPARENT;
+		else if (bs->bs_mode == 2)
+			cmd |= BLUESCREEN;
+	}
 
 	if (ctx->in.c_width != ctx->out.c_width ||
 		ctx->in.c_height != ctx->out.c_height)
@@ -593,9 +874,10 @@ static void device_run(void *prv)
 static irqreturn_t g2d_isr(int irq, void *prv)
 {
 	struct g2d_dev *dev = prv;
-	struct g2d_ctx *ctx = dev->curr;
+	struct g2d_ctx *ctx;
 	struct vb2_buffer *src, *dst;
 
+	ctx = v4l2_m2m_get_curr_priv(dev->m2m_dev);
 	g2d_clear_int(dev);
 	clk_disable(dev->gate);
 
@@ -611,7 +893,6 @@ static irqreturn_t g2d_isr(int irq, void *prv)
 	v4l2_m2m_buf_done(dst, VB2_BUF_STATE_DONE);
 	v4l2_m2m_job_finish(dev->m2m_dev, ctx->m2m_ctx);
 
-	dev->curr = NULL;
 	wake_up(&dev->irq_queue);
 	return IRQ_HANDLED;
 }
@@ -672,6 +953,8 @@ static int g2d_probe(struct platform_device *pdev)
 	struct g2d_dev *dev;
 	struct video_device *vfd;
 	struct resource *res;
+	struct clk		*parent;
+	
 	int ret = 0;
 
 	dev = devm_kzalloc(&pdev->dev, sizeof(*dev), GFP_KERNEL);
@@ -691,11 +974,25 @@ static int g2d_probe(struct platform_device *pdev)
 			return -ENOENT;
 	}
 
+	dev->g2d = &pdev->dev;
 	dev->clk = clk_get(&pdev->dev, "sclk_fimg2d");
 	if (IS_ERR_OR_NULL(dev->clk)) {
 		dev_err(&pdev->dev, "failed to get g2d clock\n");
 		return -ENXIO;
 	}
+
+	parent = clk_get(&pdev->dev, "mout_g2d0");
+	if (IS_ERR_OR_NULL(parent)) {
+		dev_err(&pdev->dev, "failed to get mout_g2d0 clock\n");
+		return -ENXIO;
+	}
+
+	if (clk_set_parent(dev->clk, parent))
+		printk(KERN_ERR "FIMG2D failed to set parent\n");
+
+	clk_set_rate(dev->clk, 201 * 1000000);
+	dev_dbg("clkrate: %ld parent clkrate: %ld\n",
+			clk_get_rate(dev->clk), clk_get_rate(parent));
 
 	ret = clk_prepare(dev->clk);
 	if (ret) {

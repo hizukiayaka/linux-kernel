@@ -29,6 +29,8 @@ struct s5p_hdmi_platform_data {
 	struct i2c_board_info *hdmiphy_info;
 	int mhl_bus;
 	struct i2c_board_info *mhl_info;
+	void (*cfg_gpio)(bool hpd_to_hdmi);
+	int (*read_gpio)(void);
 };
 
 #endif /* S5P_HDMI_H */

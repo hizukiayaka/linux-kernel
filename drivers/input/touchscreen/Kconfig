@@ -287,6 +287,40 @@ config TOUCHSCREEN_S3C2410
 	  To compile this driver as a module, choose M here: the
 	  module will be called s3c2410_ts.
 
+config TOUCHSCREEN_EXYNOS4
+	tristate "Samsung EXYNOS4 10.1\" touchscreen input driver"
+	depends on ARCH_EXYNOS4
+	help
+	  Say Y here if you have the EXYNOS4 touchscreen.
+
+config TOUCHSCREEN_1WIRE
+	tristate "Tiny4412 1-Wire host and Touch Screen Driver"
+	depends on MACH_TINY4412
+	help
+	  Say Y here to enable the 1-Wire host and Touch Screen driver for
+	  FriendlyARM Tiny4412 development board.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called tiny4412_1wire_host.
+
+config TOUCHSCREEN_IF
+	bool
+	default y if TOUCHSCREEN_1WIRE
+
+config TOUCHSCREEN_FT5X0X
+	tristate "FocalTech ft5x0x TouchScreen driver"
+	depends on MACH_TINY4412
+	help
+	  Say Y here to support FocalTech ft5x0x TouchScreen on
+	  FriendlyARM Tiny4412 development board.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called ft5x06_ts.ko.
+
 config TOUCHSCREEN_GUNZE
 	tristate "Gunze AHL-51S touchscreen"
 	select SERIO
@@ -421,7 +455,7 @@ config TOUCHSCREEN_HP600
 	depends on SH_HP6XX && SH_ADC
 	help
 	  Say Y here if you have a HP Jornada 620/660/680/690 and want to
-          support the built-in touchscreen.
+	  support the built-in touchscreen.
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called hp680_ts_input.
@@ -480,6 +514,12 @@ config TOUCHSCREEN_TNETV107X
 	  To compile this driver as a module, choose M here: the
 	  module will be called tnetv107x-ts.
 
+config TOUCHSCREEN_SYNAPTICS_I2C_RMI
+	tristate "Synaptics i2c touchscreen"
+	depends on I2C
+	help
+	  This enables support for Synaptics RMI over I2C based touchscreens.
+
 config TOUCHSCREEN_TOUCHRIGHT
 	tristate "Touchright serial touchscreen"
 	select SERIO
@@ -521,7 +561,7 @@ config TOUCHSCREEN_ATMEL_TSADCC
 	depends on ARCH_AT91
 	help
 	  Say Y here if you have a 4-wire touchscreen connected to the
-          ADC Controller on your Atmel SoC.
+	  ADC Controller on your Atmel SoC.
 
 	  If unsure, say N.
 
@@ -801,10 +841,10 @@ config TOUCHSCREEN_TSC_SERIO
 	  module will be called tsc40.
 
 config TOUCHSCREEN_TSC2005
-        tristate "TSC2005 based touchscreens"
-        depends on SPI_MASTER && GENERIC_HARDIRQS
-        help
-          Say Y here if you have a TSC2005 based touchscreen.
+	tristate "TSC2005 based touchscreens"
+	depends on SPI_MASTER && GENERIC_HARDIRQS
+	help
+	  Say Y here if you have a TSC2005 based touchscreen.
 
 	  If unsure, say N.
 

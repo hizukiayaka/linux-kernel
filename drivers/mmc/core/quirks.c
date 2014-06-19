@@ -12,7 +12,11 @@
 #include <linux/types.h>
 #include <linux/kernel.h>
 #include <linux/export.h>
+#include <linux/mmc/sdhci.h>
 #include <linux/mmc/card.h>
+#include <linux/mmc/sdio_ids.h>
+#include <linux/pm.h>
+#include <linux/pm_runtime.h>
 
 #ifndef SDIO_VENDOR_ID_TI
 #define SDIO_VENDOR_ID_TI		0x0097
@@ -39,6 +43,19 @@ static void add_quirk_for_sdio_devices(struct mmc_card *card, int data)
 		card->quirks |= data;
 }
 
+static void remove_host_flags(struct mmc_card *card, int data)
+{
+	struct mmc_host *mmc = card->host;
+	struct sdhci_host *host = mmc_priv(mmc);
+
+	host->flags &= ~data;
+
+	/* disable runtime suspend */
+	if (mmc->parent) {
+		pm_runtime_set_autosuspend_delay(mmc->parent, -1);
+	}
+}
+
 static const struct mmc_fixup mmc_fixup_methods[] = {
 	/* by default sdio devices are considered CLK_GATING broken */
 	/* good cards will be whitelisted as they are tested */
@@ -48,6 +65,9 @@ static const struct mmc_fixup mmc_fixup_methods[] = {
 
 	SDIO_FIXUP(SDIO_VENDOR_ID_TI, SDIO_DEVICE_ID_TI_WL1271,
 		   remove_quirk, MMC_QUIRK_BROKEN_CLK_GATING),
+
+	SDIO_FIXUP(SDIO_VENDOR_ID_MARVELL, SDIO_DEVICE_ID_MARVELL_LIBERTAS,
+		   remove_host_flags, SDHCI_AUTO_CMD12),
 
 	SDIO_FIXUP(SDIO_VENDOR_ID_TI, SDIO_DEVICE_ID_TI_WL1271,
 		   add_quirk, MMC_QUIRK_NONSTD_FUNC_IF),

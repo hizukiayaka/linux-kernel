@@ -26,6 +26,7 @@
 #include <media/v4l2-ioctl.h>
 #include <media/videobuf2-core.h>
 #include <media/videobuf2-dma-contig.h>
+#include <mach/sysmmu.h>
 
 #include "fimc-core.h"
 #include "fimc-reg.h"
@@ -82,6 +83,16 @@ static int start_streaming(struct vb2_queue *q, unsigned int count)
 	int ret;
 
 	ret = pm_runtime_get_sync(&ctx->fimc_dev->pdev->dev);
+	if (ret < 0)
+		goto out;
+	ret = platform_sysmmu_on(&ctx->fimc_dev->pdev->dev);
+        if (ret < 0)
+  		goto out_err;
+	else
+		goto out;
+out_err:
+	pm_runtime_put_sync(&ctx->fimc_dev->pdev->dev);
+out:
 	return ret > 0 ? 0 : ret;
 }
 
@@ -95,6 +106,7 @@ static int stop_streaming(struct vb2_queue *q)
 		fimc_m2m_job_finish(ctx, VB2_BUF_STATE_ERROR);
 
 	pm_runtime_put(&ctx->fimc_dev->pdev->dev);
+	platform_sysmmu_off(&ctx->fimc_dev->pdev->dev);
 	return 0;
 }
 
@@ -214,15 +226,62 @@ static int fimc_buf_prepare(struct vb2_buffer *vb)
 
 	return 0;
 }
+static void fimc_m2m_fence_work(struct work_struct *work)
+{
+	struct fimc_ctx *ctx = container_of(work, struct fimc_ctx, fence_work);
+	struct v4l2_m2m_buffer *buffer;
+	struct sync_fence *fence;
+	struct fimc_dev *fimc;
+	unsigned long flags;
+	int ret;
+	
+	fimc = ctx->fimc_dev;
+
+	spin_lock_irqsave(&fimc->slock, flags);
+
+	while (!list_empty(&ctx->fence_wait_list)) {
+		buffer = list_first_entry(&ctx->fence_wait_list,
+					  struct v4l2_m2m_buffer, wait);
+		list_del(&buffer->wait);
+		spin_unlock_irqrestore(&fimc->slock, flags);
+
+		fence = buffer->vb.acquire_fence;
+		if (fence) {
+			buffer->vb.acquire_fence = NULL;
+			ret = sync_fence_wait(fence, 1000);
+			if (ret == -ETIME) {
+				pr_warn("sync_fence_wait() timeout");
+				ret = sync_fence_wait(fence, 10 * MSEC_PER_SEC);
+			}
+			if (ret)
+				pr_warn("sync_fence_wait() error");
+			sync_fence_put(fence);
+		}
+
+		if (ctx->m2m_ctx) {
+			v4l2_m2m_buf_queue(ctx->m2m_ctx, &buffer->vb);
+			v4l2_m2m_try_schedule(ctx->m2m_ctx);
+		}
+
+		spin_lock_irqsave(&fimc->slock, flags);
+	}
+
+	spin_unlock_irqrestore(&fimc->slock, flags);
+}
 
 static void fimc_buf_queue(struct vb2_buffer *vb)
 {
 	struct fimc_ctx *ctx = vb2_get_drv_priv(vb->vb2_queue);
-
+	struct v4l2_m2m_buffer *b = container_of(vb, struct v4l2_m2m_buffer, vb);
+	struct fimc_dev *fimc; 
+	unsigned long flags;
 	dbg("ctx: %p, ctx->state: 0x%x", ctx, ctx->state);
+	fimc = ctx->fimc_dev;
 
-	if (ctx->m2m_ctx)
-		v4l2_m2m_buf_queue(ctx->m2m_ctx, vb);
+	spin_lock_irqsave(&fimc->slock, flags);
+	list_add_tail(&b->wait, &ctx->fence_wait_list);
+	spin_unlock_irqrestore(&fimc->slock, flags);
+	queue_work(fimc->irq_workqueue, &ctx->fence_work);
 }
 
 static void fimc_lock(struct vb2_queue *vq)
@@ -616,8 +675,9 @@ static int queue_init(void *priv, struct vb2_queue *src_vq,
 	int ret;
 
 	memset(src_vq, 0, sizeof(*src_vq));
+	src_vq->name = kasprintf(GFP_KERNEL, "%s-src", dev_name(&ctx->fimc_dev->pdev->dev));
 	src_vq->type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
-	src_vq->io_modes = VB2_MMAP | VB2_USERPTR;
+	src_vq->io_modes = VB2_MMAP | VB2_USERPTR | VB2_DMABUF;
 	src_vq->drv_priv = ctx;
 	src_vq->ops = &fimc_qops;
 	src_vq->mem_ops = &vb2_dma_contig_memops;
@@ -628,8 +688,9 @@ static int queue_init(void *priv, struct vb2_queue *src_vq,
 		return ret;
 
 	memset(dst_vq, 0, sizeof(*dst_vq));
+	dst_vq->name = kasprintf(GFP_KERNEL, "%s-dst", dev_name(&ctx->fimc_dev->pdev->dev));
 	dst_vq->type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
-	dst_vq->io_modes = VB2_MMAP | VB2_USERPTR;
+	dst_vq->io_modes = VB2_MMAP | VB2_USERPTR | VB2_DMABUF;
 	dst_vq->drv_priv = ctx;
 	dst_vq->ops = &fimc_qops;
 	dst_vq->mem_ops = &vb2_dma_contig_memops;
@@ -678,6 +739,8 @@ static int fimc_m2m_open(struct file *file)
 	ctx->flags = 0;
 	ctx->in_path = FIMC_IO_DMA;
 	ctx->out_path = FIMC_IO_DMA;
+	INIT_LIST_HEAD(&ctx->fence_wait_list);
+	INIT_WORK(&ctx->fence_work, fimc_m2m_fence_work);
 
 	ctx->m2m_ctx = v4l2_m2m_ctx_init(fimc->m2m.m2m_dev, ctx, queue_init);
 	if (IS_ERR(ctx->m2m_ctx)) {
@@ -706,6 +769,8 @@ static int fimc_m2m_release(struct file *file)
 	dbg("pid: %d, state: 0x%lx, refcnt= %d",
 		task_pid_nr(current), fimc->state, fimc->m2m.refcnt);
 
+	kfree(ctx->m2m_ctx->cap_q_ctx.q.name);
+	kfree(ctx->m2m_ctx->out_q_ctx.q.name);
 	v4l2_m2m_ctx_release(ctx->m2m_ctx);
 	fimc_ctrls_delete(ctx);
 	v4l2_fh_del(&ctx->fh);

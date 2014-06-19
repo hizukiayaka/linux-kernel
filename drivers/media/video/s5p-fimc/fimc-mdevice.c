@@ -28,6 +28,9 @@
 #include "fimc-lite.h"
 #include "fimc-mdevice.h"
 #include "mipi-csis.h"
+#include <mach/videodev2_samsung.h>
+#include <linux/delay.h>
+struct fimc_md *gfmd;
 
 static int __fimc_md_set_camclk(struct fimc_md *fmd,
 				struct fimc_sensor_info *s_info,
@@ -47,6 +50,14 @@ void fimc_pipeline_prepare(struct fimc_pipeline *p, struct media_entity *me)
 	for (i = 0; i < IDX_MAX; i++)
 		p->subdevs[i] = NULL;
 
+	if (gfmd->fimc[0]->vid_cap.use_isp) {
+		p->subdevs[IDX_SENSOR] = gfmd->fimc[0]->vid_cap.isp_subdev;
+		p->subdevs[IDX_CSIS]  = gfmd->fimc[0]->vid_cap.mipi_subdev;
+		p->subdevs[IDX_FLITE] =	gfmd->fimc[0]->vid_cap.flite_subdev;
+		gfmd->fimc[0]->vid_cap.is.sd = \
+			gfmd->fimc[0]->vid_cap.isp_subdev;
+		return;
+	}
 	while (1) {
 		if (!(pad->flags & MEDIA_PAD_FL_SINK))
 			break;
@@ -97,13 +108,14 @@ static int __subdev_set_power(struct v4l2_subdev *sd, int on)
 	if (sd == NULL)
 		return -ENXIO;
 
-	use_count = &sd->entity.use_count;
-	if (on && (*use_count)++ > 0)
-		return 0;
-	else if (!on && (*use_count == 0 || --(*use_count) > 0))
-		return 0;
+	if (!gfmd->fimc[0]->vid_cap.use_isp) {
+		use_count = &sd->entity.use_count;
+		if (on && (*use_count)++ > 0)
+			return 0;
+		else if (!on && (*use_count == 0 || --(*use_count) > 0))
+			return 0;
+	}
 	ret = v4l2_subdev_call(sd, core, s_power, on);
-
 	return ret != -ENOIOCTLCMD ? ret : 0;
 }
 
@@ -117,14 +129,20 @@ static int __subdev_set_power(struct v4l2_subdev *sd, int on)
 int fimc_pipeline_s_power(struct fimc_pipeline *p, bool state)
 {
 	unsigned int i;
-	int ret;
-
+	int ret=0;
+	int use_isp=0;
+	struct s5p_fimc_isp_info *s_info1;
+	if (gfmd->fimc[0]->vid_cap.use_isp) {
+		s_info1 = gfmd->sensor[0].pdata;
+		s_info1->cam_power(1);
+		use_isp = 1;
+	}
 	if (p->subdevs[IDX_SENSOR] == NULL)
 		return -ENXIO;
 
 	for (i = 0; i < IDX_MAX; i++) {
 		unsigned int idx = state ? (IDX_MAX - 1) - i : i;
-
+		if(idx!=IDX_SENSOR || !use_isp)
 		ret = __subdev_set_power(p->subdevs[idx], state);
 		if (ret < 0 && ret != -ENXIO)
 			return ret;
@@ -200,9 +218,9 @@ int fimc_pipeline_shutdown(struct fimc_pipeline *p)
 		return -EINVAL;
 
 	me = &p->subdevs[IDX_SENSOR]->entity;
-	mutex_lock(&me->parent->graph_mutex);
+//	mutex_lock(&me->parent->graph_mutex);
 	ret = __fimc_pipeline_shutdown(p);
-	mutex_unlock(&me->parent->graph_mutex);
+//	mutex_unlock(&me->parent->graph_mutex);
 
 	return ret;
 }
@@ -245,6 +263,12 @@ static struct v4l2_subdev *fimc_md_register_sensor(struct fimc_md *fmd,
 
 	if (!s_info || !fmd)
 		return NULL;
+	if(s_info->pdata->use_isp)
+	{
+		fmd->fimc[0]->is_s5k6a3 = true;
+		fmd->fimc[1]->is_s5k6a3 = true;
+		return fmd->fimc_is_subdev;
+	}
 
 	adapter = i2c_get_adapter(s_info->pdata->i2c_bus_num);
 	if (!adapter) {
@@ -267,6 +291,8 @@ static struct v4l2_subdev *fimc_md_register_sensor(struct fimc_md *fmd,
 
 	v4l2_info(&fmd->v4l2_dev, "Registered sensor subdevice %s\n",
 		  s_info->pdata->board_info->type);
+	fmd->fimc[0]->is_m5mo = true;
+	fmd->fimc[1]->is_m5mo = true;
 	return sd;
 }
 
@@ -305,7 +331,8 @@ static int fimc_md_register_sensor_entities(struct fimc_md *fmd)
 
 	WARN_ON(pdata->num_clients > ARRAY_SIZE(fmd->sensor));
 	num_clients = min_t(u32, pdata->num_clients, ARRAY_SIZE(fmd->sensor));
-
+	fmd->fimc[0]->num_client = num_clients;
+	fmd->fimc[1]->num_client = num_clients;
 	fmd->num_sensors = num_clients;
 	for (i = 0; i < num_clients; i++) {
 		struct v4l2_subdev *sd;
@@ -359,6 +386,18 @@ static int fimc_register_callback(struct device *dev, void *p)
 	return ret;
 }
 
+static int flite_register_callback(struct device *dev, void *p)
+{
+       // struct v4l2_subdev **sd_list = p;
+	struct fimc_md *fmd = p;
+        struct v4l2_subdev *sd = NULL;
+
+        sd = dev_get_drvdata(dev);
+        struct platform_device *pdev = v4l2_get_subdevdata(sd);
+	if(pdev->id==1)
+	gfmd->fimc[0]->vid_cap.flite_subdev= sd;
+        return 0; /* non-zero value stops iteration */
+}
 static int fimc_lite_register_callback(struct device *dev, void *p)
 {
 	struct fimc_lite *fimc = dev_get_drvdata(dev);
@@ -397,6 +436,8 @@ static int csis_register_callback(struct device *dev, void *p)
 	if (!pdev || pdev->id < 0 || pdev->id >= CSIS_MAX_ENTITIES)
 		return 0;
 	v4l2_info(sd, "csis%d sd: %s\n", pdev->id, sd->name);
+	if(pdev->id==1)
+	fmd->fimc[0]->vid_cap.mipi_subdev=sd;
 
 	id = pdev->id < 0 ? 0 : pdev->id;
 	fmd->csis[id].sd = sd;
@@ -407,7 +448,43 @@ static int csis_register_callback(struct device *dev, void *p)
 			 "Failed to register CSIS subdevice: %d\n", ret);
 	return ret;
 }
+static int fimc_is_register_callback(struct device *dev, void *p)
+{
+        struct v4l2_subdev **sd = p;
+        struct platform_device *pdev;
 
+        *sd = dev_get_drvdata(dev);
+
+        if (*sd)        
+                pdev = v4l2_get_subdevdata(*sd);
+
+        return 0; /* non-zero value stops iteration */
+} 
+
+static struct v4l2_subdev *fimc_is_get_subdev()
+{                       
+        const char *module_name = "exynos4-fimc-is";
+        struct device_driver *drv;
+        struct v4l2_subdev *sd = NULL; 
+        int ret;        
+                        
+        drv = driver_find(module_name, &platform_bus_type);
+	if (!drv) {
+		printk("%s driver not found, deffering probe\n",
+			 module_name);
+		return -EPROBE_DEFER;
+	}
+	if (drv && try_module_get(drv->owner)) {
+	        ret = driver_for_each_device(drv, NULL, &sd,
+                                     fimc_is_register_callback);
+		if (ret)
+			return ret;
+		module_put(drv->owner);
+	}
+	gfmd->fimc[0]->vid_cap.isp_subdev=sd;
+        
+        return ret ? NULL : sd;
+}
 /**
  * fimc_md_register_platform_entities - register FIMC and CSIS media entities
  */
@@ -433,11 +510,12 @@ static int fimc_md_register_platform_entities(struct fimc_md *fmd)
 	driver = driver_find(FIMC_LITE_DRV_NAME, &platform_bus_type);
 	if (driver && try_module_get(driver->owner)) {
 		ret = driver_for_each_device(driver, NULL, fmd,
-					     fimc_lite_register_callback);
+					     flite_register_callback);
 		if (ret)
 			return ret;
 		module_put(driver->owner);
 	}
+	fmd->fimc_is_subdev=fimc_is_get_subdev();
 	/*
 	 * Check if there is any sensor on the MIPI-CSI2 bus and
 	 * if not skip the s5p-csis module loading.
@@ -544,7 +622,7 @@ static int __fimc_md_create_fimc_sink_links(struct fimc_md *fmd,
 		if (flags == 0 || sensor == NULL)
 			continue;
 		s_info = v4l2_get_subdev_hostdata(sensor);
-		if (!WARN_ON(s_info == NULL)) {
+		if (!(s_info == NULL)&&!i) {
 			unsigned long irq_flags;
 			spin_lock_irqsave(&fmd->slock, irq_flags);
 			s_info->host = fmd->fimc[i];
@@ -584,7 +662,7 @@ static int __fimc_md_create_flite_source_links(struct fimc_md *fmd)
 {
 	struct media_entity *source, *sink;
 	unsigned int flags = MEDIA_LNK_FL_ENABLED;
-	int i, ret;
+	int i, ret = 0;
 
 	for (i = 0; i < FIMC_LITE_MAX_DEVS; i++) {
 		struct fimc_lite *fimc = fmd->fimc_lite[i];
@@ -617,7 +695,7 @@ static int __fimc_md_create_flite_source_links(struct fimc_md *fmd)
  */
 static int fimc_md_create_links(struct fimc_md *fmd)
 {
-	struct v4l2_subdev *sensor, *csis;
+	struct v4l2_subdev *sensor = NULL, *csis;
 	struct s5p_fimc_isp_info *pdata;
 	struct fimc_sensor_info *s_info;
 	struct media_entity *source, *sink;
@@ -685,8 +763,8 @@ static int fimc_md_create_links(struct fimc_md *fmd)
 		source = &fmd->csis[i].sd->entity;
 		pad = CSIS_PAD_SOURCE;
 
-		link_mask = 1 << fimc_id++;
-		ret = __fimc_md_create_fimc_sink_links(fmd, source, NULL,
+		link_mask = 3 << fimc_id++;
+		ret = __fimc_md_create_fimc_sink_links(fmd, source, sensor,
 						       pad, link_mask);
 	}
 
@@ -796,9 +874,14 @@ static int __fimc_md_set_camclk(struct fimc_md *fmd,
 int fimc_md_set_camclk(struct v4l2_subdev *sd, bool on)
 {
 	struct fimc_sensor_info *s_info = v4l2_get_subdev_hostdata(sd);
-	struct fimc_md *fmd = entity_to_fimc_mdev(&sd->entity);
+	if ((gfmd->fimc[0]->vid_cap.use_isp) && !s_info) {
+		s_info = &gfmd->sensor[0];
+		gfmd->fimc[0]->vid_cap.s_info = s_info;
+		gfmd->fimc[1]->vid_cap.s_info = s_info;
+		s_info->pdata->clk_id = 1;
+	}
 
-	return __fimc_md_set_camclk(fmd, s_info, on);
+	return __fimc_md_set_camclk(gfmd, s_info, on);
 }
 
 static int fimc_md_link_notify(struct media_pad *source,
@@ -854,7 +937,7 @@ static int fimc_md_link_notify(struct media_pad *source,
 			ret = fimc_capture_ctrls_create(fimc);
 		}
 		mutex_unlock(&fimc->lock);
-	} else {
+	} else if (fimc_lite) {
 		mutex_lock(&fimc_lite->lock);
 		if (fimc_lite->ref_count > 0) {
 			ret = __fimc_pipeline_initialize(pipeline,
@@ -919,7 +1002,7 @@ static int fimc_md_probe(struct platform_device *pdev)
 	fmd = devm_kzalloc(&pdev->dev, sizeof(*fmd), GFP_KERNEL);
 	if (!fmd)
 		return -ENOMEM;
-
+	gfmd=fmd;
 	spin_lock_init(&fmd->slock);
 	fmd->pdev = pdev;
 
@@ -1018,6 +1101,16 @@ int __init fimc_md_init(void)
 	ret = fimc_register_driver();
 	if (ret)
 		return ret;
+#ifdef CONFIG_VIDEO_EXYNOS_FIMC_IS 
+	ret = fimc_is_init();
+	if (ret)
+		return ret;
+#endif
+#ifdef CONFIG_VIDEO_EXYNOS_FIMC_LITE
+	ret = flite_init();
+	if (ret)
+		return ret;
+#endif
 
 	return platform_driver_register(&fimc_md_driver);
 }
@@ -1025,6 +1118,12 @@ void __exit fimc_md_exit(void)
 {
 	platform_driver_unregister(&fimc_md_driver);
 	fimc_unregister_driver();
+#ifdef CONFIG_VIDEO_EXYNOS_FIMC_IS 
+	fimc_is_exit();
+#endif
+#ifdef CONFIG_VIDEO_EXYNOS_FIMC_LITE
+	flite_exit();
+#endif
 }
 
 module_init(fimc_md_init);

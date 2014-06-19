@@ -12,14 +12,19 @@
 
 #include <linux/platform_device.h>
 #include <linux/dma-mapping.h>
+#include <linux/slab.h>
+#include <linux/exynos-iommu.h>
 
 #include <plat/cpu.h>
+#include <plat/devs.h>
 
 #include <mach/map.h>
 #include <mach/irqs.h>
 #include <mach/sysmmu.h>
+#include <asm/dma-iommu.h>
 
 static u64 exynos_sysmmu_dma_mask = DMA_BIT_MASK(32);
+struct exynos_iovmm vmm;
 
 #define SYSMMU_PLATFORM_DEVICE(ipname, devid)				\
 static struct sysmmu_platform_data platdata_##ipname = {		\
@@ -55,6 +60,8 @@ SYSMMU_PLATFORM_DEVICE(fimd1,	11);
 SYSMMU_PLATFORM_DEVICE(camif0,	12);
 SYSMMU_PLATFORM_DEVICE(camif1,	13);
 SYSMMU_PLATFORM_DEVICE(2d,	14);
+SYSMMU_PLATFORM_DEVICE(flite0,	15);
+SYSMMU_PLATFORM_DEVICE(flite1,	16);
 
 #define SYSMMU_RESOURCE_NAME(core, ipname) sysmmures_##core##_##ipname
 
@@ -272,3 +279,64 @@ static int __init init_sysmmu_platform_device(void)
 	return 0;
 }
 arch_initcall(init_sysmmu_platform_device);
+
+#ifdef CONFIG_ARM_DMA_USE_IOMMU
+int __init s5p_create_iommu_mapping(struct device *client, dma_addr_t base,
+				    unsigned int size, int order)
+{
+	struct dma_iommu_mapping *mapping;
+	if (!client)
+		return 0;
+	mapping = arm_iommu_create_mapping(&platform_bus_type, base, size, order);
+	if (!mapping)
+		return -ENOMEM;
+	client->dma_parms = kzalloc(sizeof(*client->dma_parms), GFP_KERNEL);
+	dma_set_max_seg_size(client, 0xffffffffu);
+	arm_iommu_attach_device(client, mapping);
+	return 0;
+}
+
+/*
+ * s5p_sysmmu_late_init
+ * Create DMA-mapping IOMMU context for specified devices. This function must
+ * be called later, once SYSMMU driver gets registered and probed.
+ */
+static int __init s5p_sysmmu_late_init(void)
+{
+	platform_set_sysmmu(&SYSMMU_PLATDEV(fimc0).dev, &s5p_device_fimc0.dev);
+	platform_set_sysmmu(&SYSMMU_PLATDEV(fimc1).dev, &s5p_device_fimc1.dev);
+	platform_set_sysmmu(&SYSMMU_PLATDEV(fimc2).dev, &s5p_device_fimc2.dev);
+	platform_set_sysmmu(&SYSMMU_PLATDEV(fimc3).dev, &s5p_device_fimc3.dev);
+	platform_set_sysmmu(&SYSMMU_PLATDEV(mfc_l).dev, &s5p_device_mfc_l.dev);
+	platform_set_sysmmu(&SYSMMU_PLATDEV(mfc_r).dev, &s5p_device_mfc_r.dev);
+	platform_set_sysmmu(&SYSMMU_PLATDEV(tv).dev, 	&s5p_device_mixer.dev);
+#ifdef CONFIG_VIDEO_EXYNOS_FIMG2D
+	platform_set_sysmmu(&SYSMMU_PLATDEV(2d).dev, &s5p_device_fimg2d.dev);
+#endif
+#ifdef CONFIG_VIDEO_EXYNOS_FIMC_LITE
+	platform_set_sysmmu(&SYSMMU_PLATDEV(flite0).dev, &exynos_device_flite0.dev);
+	platform_set_sysmmu(&SYSMMU_PLATDEV(flite1).dev, &exynos_device_flite1.dev);
+#endif
+	platform_set_sysmmu(&SYSMMU_PLATDEV(jpeg).dev, &s5p_device_jpeg.dev);
+	platform_set_sysmmu(&SYSMMU_PLATDEV(fimd0).dev, &s5p_device_fimd0.dev);
+
+	s5p_create_iommu_mapping(&s5p_device_fimc0.dev, 0x20000000, SZ_128M, 4);
+	s5p_create_iommu_mapping(&s5p_device_fimc1.dev, 0x20000000, SZ_128M, 4);
+	s5p_create_iommu_mapping(&s5p_device_fimc2.dev, 0x20000000, SZ_128M, 4);
+	s5p_create_iommu_mapping(&s5p_device_fimc3.dev, 0x20000000, SZ_128M, 4);
+	s5p_create_iommu_mapping(&s5p_device_mfc_l.dev, 0x20000000, SZ_128M, 4);
+	s5p_create_iommu_mapping(&s5p_device_mfc_r.dev, 0x40000000, SZ_128M, 4);
+	s5p_create_iommu_mapping(&s5p_device_mixer.dev, 0x00000000, SZ_128M, 4);
+#ifdef CONFIG_VIDEO_EXYNOS_FIMG2D
+	s5p_create_iommu_mapping(&s5p_device_fimg2d.dev, 0x20000000, SZ_128M, 4);
+#endif
+	s5p_create_iommu_mapping(&s5p_device_jpeg.dev, 	0x20000000, SZ_64M, 4);
+#ifdef CONFIG_VIDEO_EXYNOS_FIMC_LITE
+	s5p_create_iommu_mapping(&exynos_device_flite0.dev, 0x20000000, SZ_128M, 4);
+	s5p_create_iommu_mapping(&exynos_device_flite1.dev, 0x20000000, SZ_128M, 4);
+#endif
+	exynos_init_iovmm(&SYSMMU_PLATDEV(fimd0).dev, &vmm);
+	return 0;
+}
+device_initcall(s5p_sysmmu_late_init);
+#endif

@@ -80,6 +80,7 @@ struct fimc_md {
 	struct v4l2_device v4l2_dev;
 	struct platform_device *pdev;
 	bool user_subdev_api;
+	struct v4l2_subdev  *fimc_is_subdev;
 	spinlock_t slock;
 };
 

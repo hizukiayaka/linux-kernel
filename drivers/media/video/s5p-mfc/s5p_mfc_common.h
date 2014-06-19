@@ -23,6 +23,7 @@
 #include <media/v4l2-device.h>
 #include <media/v4l2-ioctl.h>
 #include <media/videobuf2-core.h>
+#include <mach/dev.h>
 
 /* Definitions related to MFC memory */
 
@@ -47,6 +48,8 @@
 #define MFC_BANK1_ALIGN_ORDER	13
 #define MFC_BANK2_ALIGN_ORDER	13
 #define MFC_BASE_ALIGN_ORDER	17
+
+#define BUSFREQ_400MHZ  400000
 
 #include <media/videobuf2-dma-contig.h>
 
@@ -146,6 +149,9 @@ enum s5p_mfc_decode_arg {
 	MFC_DEC_RES_CHANGE,
 };
 
+#define MFC_BUF_FLAG_USED       (1 << 0)
+#define MFC_BUF_FLAG_EOS        (1 << 1)
+
 struct s5p_mfc_ctx;
 
 /**
@@ -161,7 +167,7 @@ struct s5p_mfc_buf {
 		} raw;
 		size_t stream;
 	} cookie;
-	int used;
+	int flags;
 };
 
 /**
@@ -245,6 +251,8 @@ struct s5p_mfc_dev {
 	struct work_struct watchdog_work;
 	void *alloc_ctx[2];
 	unsigned long enter_suspend;
+	struct device *bus_dev;
+	struct device *device;
 };
 
 /**
@@ -530,6 +538,7 @@ struct s5p_mfc_ctx {
 
 	struct v4l2_ctrl *ctrls[MFC_MAX_CTRLS];
 	struct v4l2_ctrl_handler ctrl_handler;
+	unsigned int frame_tag;
 };
 
 /*

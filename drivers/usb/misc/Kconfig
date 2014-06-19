@@ -244,3 +244,8 @@ config USB_YUREX
 	  To compile this driver as a module, choose M here: the
 	  module will be called yurex.
 
+config USB_EXYNOS_SWITCH
+	bool "EXYNOS USB SWITCH driver"
+	depends on (USB_EHCI_S5P || USB_OHCI_EXYNOS) && USB_S3C_HSOTG
+	help
+	  This driver is for switching host & device controller software.

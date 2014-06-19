@@ -18,14 +18,26 @@
 
 #include <mach/map.h>
 
+static void exynos4_fimd0_cfg_gpios(unsigned int base, unsigned int nr,
+		unsigned int cfg, s5p_gpio_drvstr_t drvstr)
+{
+	s3c_gpio_cfgrange_nopull(base, nr, cfg);
+
+	for (; nr > 0; nr--, base++)
+		s5p_gpio_set_drvstr(base, drvstr);
+}
+
 void exynos4_fimd0_gpio_setup_24bpp(void)
 {
 	unsigned int reg;
 
-	s3c_gpio_cfgrange_nopull(EXYNOS4_GPF0(0), 8, S3C_GPIO_SFN(2));
-	s3c_gpio_cfgrange_nopull(EXYNOS4_GPF1(0), 8, S3C_GPIO_SFN(2));
-	s3c_gpio_cfgrange_nopull(EXYNOS4_GPF2(0), 8, S3C_GPIO_SFN(2));
-	s3c_gpio_cfgrange_nopull(EXYNOS4_GPF3(0), 4, S3C_GPIO_SFN(2));
+	exynos4_fimd0_cfg_gpios(EXYNOS4_GPF0(0), 8, S3C_GPIO_SFN(2), S5P_GPIO_DRVSTR_LV3);
+	exynos4_fimd0_cfg_gpios(EXYNOS4_GPF1(0), 8, S3C_GPIO_SFN(2), S5P_GPIO_DRVSTR_LV3);
+	exynos4_fimd0_cfg_gpios(EXYNOS4_GPF2(0), 8, S3C_GPIO_SFN(2), S5P_GPIO_DRVSTR_LV3);
+	exynos4_fimd0_cfg_gpios(EXYNOS4_GPF3(0), 4, S3C_GPIO_SFN(2), S5P_GPIO_DRVSTR_LV3);
+
+	s5p_gpio_set_drvstr(EXYNOS4_GPF0(2), S5P_GPIO_DRVSTR_LV4);
+	s5p_gpio_set_drvstr(EXYNOS4_GPF0(3), S5P_GPIO_DRVSTR_LV4);
 
 	/*
 	 * Set DISPLAY_CONTROL register for Display path selection.

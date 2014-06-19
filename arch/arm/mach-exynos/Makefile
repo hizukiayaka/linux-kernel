@@ -28,7 +28,19 @@ obj-$(CONFIG_SMP)		+= platsmp.o headsmp.o
 
 obj-$(CONFIG_EXYNOS4_MCT)	+= mct.o
 
+obj-$(CONFIG_ARM_TRUSTZONE)	+= smc_readsfr.o
+plus_sec := $(call as-instr,.arch_extension sec,+sec)
+AFLAGS_smc_readsfr.o :=-Wa,-march=armv7-a$(plus_sec)
 obj-$(CONFIG_HOTPLUG_CPU)	+= hotplug.o
+obj-$(CONFIG_ARM_TRUSTZONE)	+= smc.o
+plus_sec := $(call as-instr,.arch_extension sec,+sec)
+AFLAGS_smc.o :=-Wa,-march=armv7-a$(plus_sec)
+
+obj-$(CONFIG_BUSFREQ)           += busfreq.o
+obj-$(CONFIG_BUSFREQ_OPP)       += dev.o
+ifeq ($(CONFIG_BUSFREQ_OPP),y)
+obj-$(CONFIG_ARCH_EXYNOS4)      += ppmu.o busfreq_opp_exynos4.o busfreq_opp_4x12.o
+endif
 
 # machine support
 
@@ -41,6 +53,7 @@ obj-$(CONFIG_MACH_ORIGEN)		+= mach-origen.o
 
 obj-$(CONFIG_MACH_SMDK4212)		+= mach-smdk4x12.o
 obj-$(CONFIG_MACH_SMDK4412)		+= mach-smdk4x12.o
+obj-$(CONFIG_MACH_TINY4412)		+= mach-tiny4412.o tiny4412-lcds.o
 
 obj-$(CONFIG_MACH_EXYNOS4_DT)		+= mach-exynos4-dt.o
 obj-$(CONFIG_MACH_EXYNOS5_DT)		+= mach-exynos5-dt.o
@@ -55,6 +68,11 @@ obj-$(CONFIG_EXYNOS_DEV_DMA)		+= dma.o
 obj-$(CONFIG_EXYNOS4_DEV_USB_OHCI)	+= dev-ohci.o
 obj-$(CONFIG_EXYNOS_DEV_DRM)		+= dev-drm.o
 obj-$(CONFIG_EXYNOS_DEV_SYSMMU)		+= dev-sysmmu.o
+obj-$(CONFIG_ION_EXYNOS)		+= dev-ion.o
+obj-$(CONFIG_EXYNOS4_DEV_FIMC_IS)       += dev-fimc-is.o
+obj-$(CONFIG_EXYNOS4_SETUP_FIMC_IS)     += setup-fimc-is.o
+obj-$(CONFIG_VIDEO_EXYNOS_FIMC_LITE)     += dev-fimc-lite.o
+obj-$(CONFIG_EXYNOS_THERMAL)     	+= dev-tmu.o
 
 obj-$(CONFIG_ARCH_EXYNOS)		+= setup-i2c0.o
 obj-$(CONFIG_EXYNOS4_SETUP_FIMC)	+= setup-fimc.o
@@ -70,3 +88,8 @@ obj-$(CONFIG_EXYNOS4_SETUP_KEYPAD)	+= setup-keypad.o
 obj-$(CONFIG_EXYNOS4_SETUP_SDHCI_GPIO)	+= setup-sdhci-gpio.o
 obj-$(CONFIG_EXYNOS4_SETUP_USB_PHY)	+= setup-usb-phy.o
 obj-$(CONFIG_EXYNOS_SETUP_SPI)		+= setup-spi.o
+obj-$(CONFIG_EXYNOS4_SETUP_HDMI)	+= setup-hdmi.o
+obj-$(CONFIG_EXYNOS_ASV)		+= asv.o asv-4x12.o
+obj-$(CONFIG_EXYNOS_DVFS_NR_POLICY_OLD) += dynamic-dvfs-nr_running-hotplug.o
+obj-$(CONFIG_EXYNOS_DVFS_NR_RUNNING_POLICY) += dynamic-dvfs-nr-bassed-hotplug.o
+obj-$(CONFIG_EXYNOS_DVFS_NR_RUNNING_QUICK_POLICY) += dynamic-dvfs-nr-bassed-hotplug.o

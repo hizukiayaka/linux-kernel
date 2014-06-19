@@ -33,6 +33,7 @@
 #include <linux/bitops.h>
 #include <linux/regulator/consumer.h>
 #include <linux/workqueue.h>
+#include <plat/cpu.h>
 
 #include "dw_mmc.h"
 
@@ -790,6 +791,9 @@ static void dw_mci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 		regs &= ~(0x1 << slot->id) << 16;
 
 	mci_writel(slot->host, UHS_REG, regs);
+
+	if (slot->host->pdata->set_io_timing)
+		slot->host->pdata->set_io_timing(slot->host, ios->timing);
 
 	if (ios->clock) {
 		/*
@@ -1926,8 +1930,9 @@ static bool mci_wait_reset(struct device *dev, struct dw_mci *host)
 
 int dw_mci_probe(struct dw_mci *host)
 {
-	int width, i, ret = 0;
+	int width, i = 0, ret = 0;
 	u32 fifo_size;
+	struct dw_mci_board *brd = NULL;
 
 	if (!host->pdata || !host->pdata->init) {
 		dev_err(&host->dev,
@@ -1947,8 +1952,38 @@ int dw_mci_probe(struct dw_mci *host)
 		return -ENODEV;
 	}
 
+	host->hclk = clk_get(&host->dev, host->pdata->hclk_name);
+	if (IS_ERR(host->hclk)) {
+		dev_err(&host->dev,
+				"failed to get hclk\n");
+		ret = PTR_ERR(host->hclk);
+		goto err_freehost;
+	}
+	clk_enable(host->hclk);
+
+	host->cclk = clk_get(&host->dev, host->pdata->cclk_name);
+	if (IS_ERR(host->cclk)) {
+		dev_err(&host->dev,
+				"failed to get cclk\n");
+		ret = PTR_ERR(host->cclk);
+		goto err_free_hclk;
+	}
+	clk_enable(host->cclk);
+
+	if (host->pdata->cfg_gpio)
+		host->pdata->cfg_gpio(MMC_BUS_WIDTH_8);
+
+	host->pdata->bus_hz = 66 * 1000 * 1000;
+
 	host->bus_hz = host->pdata->bus_hz;
 	host->quirks = host->pdata->quirks;
+
+	/* Set Phase Shift Register */
+	if (soc_is_exynos4212() || soc_is_exynos4412()) {
+		brd = host->pdata;
+		brd->sdr_timing = 0x00010001;
+		brd->ddr_timing = 0x00010001;
+	}
 
 	spin_lock_init(&host->lock);
 	INIT_LIST_HEAD(&host->queue);
@@ -2033,6 +2068,16 @@ int dw_mci_probe(struct dw_mci *host)
 	else
 		host->num_slots = ((mci_readl(host, HCON) >> 1) & 0x1F) + 1;
 
+	/*
+	 * Enable interrupts for command done, data over, data empty, card det,
+	 * receive ready and error such as transmit, receive timeout, crc error
+	 */
+	mci_writel(host, RINTSTS, 0xFFFFFFFF);
+	mci_writel(host, INTMASK, SDMMC_INT_CMD_DONE | SDMMC_INT_DATA_OVER |
+		   SDMMC_INT_TXDR | SDMMC_INT_RXDR |
+		   DW_MCI_ERROR_FLAGS | SDMMC_INT_CD);
+	mci_writel(host, CTRL, SDMMC_CTRL_INT_ENABLE); /* Enable mci interrupt */
+
 	/* We need at least one slot to succeed */
 	for (i = 0; i < host->num_slots; i++) {
 		ret = dw_mci_init_slot(host, i);
@@ -2053,16 +2098,6 @@ int dw_mci_probe(struct dw_mci *host)
 		host->data_offset = DATA_OFFSET;
 	else
 		host->data_offset = DATA_240A_OFFSET;
-
-	/*
-	 * Enable interrupts for command done, data over, data empty, card det,
-	 * receive ready and error such as transmit, receive timeout, crc error
-	 */
-	mci_writel(host, RINTSTS, 0xFFFFFFFF);
-	mci_writel(host, INTMASK, SDMMC_INT_CMD_DONE | SDMMC_INT_DATA_OVER |
-		   SDMMC_INT_TXDR | SDMMC_INT_RXDR |
-		   DW_MCI_ERROR_FLAGS | SDMMC_INT_CD);
-	mci_writel(host, CTRL, SDMMC_CTRL_INT_ENABLE); /* Enable mci interrupt */
 
 	dev_info(&host->dev, "DW MMC controller at irq %d, "
 		 "%d bit host data width, "
@@ -2095,6 +2130,12 @@ err_dmaunmap:
 		regulator_disable(host->vmmc);
 		regulator_put(host->vmmc);
 	}
+	clk_disable(host->cclk);
+	clk_put(host->cclk);
+err_free_hclk:
+	clk_disable(host->hclk);
+	clk_put(host->hclk);
+err_freehost:
 	return ret;
 }
 EXPORT_SYMBOL(dw_mci_probe);
@@ -2128,6 +2169,10 @@ void dw_mci_remove(struct dw_mci *host)
 		regulator_put(host->vmmc);
 	}
 
+	clk_disable(host->cclk);
+	clk_put(host->cclk);
+	clk_disable(host->hclk);
+	clk_put(host->hclk);
 }
 EXPORT_SYMBOL(dw_mci_remove);
 

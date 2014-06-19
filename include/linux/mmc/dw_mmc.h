@@ -125,6 +125,8 @@ struct dw_mci {
 	struct mmc_request	*mrq;
 	struct mmc_command	*cmd;
 	struct mmc_data		*data;
+	struct clk		*hclk;
+	struct clk		*cclk;
 	struct workqueue_struct	*card_workqueue;
 
 	/* DMA interface members*/
@@ -151,6 +153,7 @@ struct dw_mci {
 	struct list_head	queue;
 
 	u32			bus_hz;
+	u32			max_bus_hz;
 	u32			current_speed;
 	u32			num_slots;
 	u32			fifoth_val;
@@ -201,7 +204,16 @@ struct dw_mci_dma_ops {
 #define DW_MCI_QUIRK_HIGHSPEED			BIT(2)
 /* Unreliable card detection */
 #define DW_MCI_QUIRK_BROKEN_CARD_DETECTION	BIT(3)
+/* Unreliable SDIO operation */
+#define DW_MCI_QUIRK_REQUEST_DELAY		BIT(4)
 
+enum dw_mci_cd_types {
+	DW_MCI_CD_INTERNAL,	/* use mmc internal CD line */
+	DW_MCI_CD_EXTERNAL,	/* use external callback */
+	DW_MCI_CD_GPIO,		/* use external gpio pin for CD line */
+	DW_MCI_CD_NONE,		/* no CD line, use polling to detect card */
+	DW_MCI_CD_PERMANENT,	/* no CD line, card permanently wired to host */
+};
 
 struct dma_pdata;
 
@@ -219,9 +231,12 @@ struct dw_mci_board {
 
 	u32 quirks; /* Workaround / Quirk flags */
 	unsigned int bus_hz; /* Bus speed */
+	unsigned int max_bus_hz; /* MAXIMUM Bus speed */
 
 	unsigned int caps;	/* Capabilities */
 	unsigned int caps2;	/* More capabilities */
+	unsigned int pm_caps;	/* supported pm features */
+
 	/*
 	 * Override fifo depth. If 0, autodetect it from the FIFOTH register,
 	 * but note that this may not be reliable after a bootloader has used
@@ -232,11 +247,38 @@ struct dw_mci_board {
 	/* delay in mS before detecting cards after interrupt */
 	u32 detect_delay_ms;
 
+	char *hclk_name;
+	char *cclk_name;
+
 	int (*init)(u32 slot_id, irq_handler_t , void *);
 	int (*get_ro)(u32 slot_id);
 	int (*get_cd)(u32 slot_id);
 	int (*get_ocr)(u32 slot_id);
 	int (*get_bus_wd)(u32 slot_id);
+	void (*cfg_gpio)(int width);
+	void (*set_io_timing)(void *data, unsigned char timing);
+
+	/* Phase Shift Value */
+	unsigned int sdr_timing;
+	unsigned int ddr_timing;
+	u8 clk_drv;
+
+	/* cd_type: Type of Card Detection method (see cd_types enum above) */
+	enum dw_mci_cd_types cd_type;
+
+	/* ext_cd_cleanup: Cleanup external card detect subsystem.
+	* ext_cd_init: Initialize external card detect subsystem.
+	*	notify_func argument is a callback to the dwmci driver
+	*	that triggers the card detection event. Callback arguments:
+	*	dev is pointer to platform device of the host controller,
+	*	state is new state of the card (0 - removed, 1 - inserted).
+	*/
+
+	int (*ext_cd_init)(void (*notify_func)
+		(struct platform_device *, int state));
+	int (*ext_cd_cleanup)(void (*notify_func)
+		(struct platform_device *, int state));
+
 	/*
 	 * Enable power to selected slot and set voltage to desired level.
 	 * Voltage levels are specified using MMC_VDD_xxx defines defined

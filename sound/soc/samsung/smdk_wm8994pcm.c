@@ -14,6 +14,9 @@
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
 
+#include <mach/regs-clock.h>
+#include <linux/clk.h>
+
 #include "../codecs/wm8994.h"
 #include "dma.h"
 #include "pcm.h"
@@ -47,18 +50,50 @@
 /* SMDK has a 16.9344MHZ crystal attached to WM8994 */
 #define SMDK_WM8994_FREQ 16934400
 
+#ifdef CONFIG_SND_SAMSUNG_PCM_USE_EPLL
+static int set_epll_rate(unsigned long rate)
+{
+	struct clk *fout_epll;
+
+	fout_epll = clk_get(NULL, "fout_epll");
+	if (IS_ERR(fout_epll)) {
+		printk(KERN_ERR "%s: failed to get fout_epll\n", __func__);
+		return PTR_ERR(fout_epll);
+	}
+
+	if (rate == clk_get_rate(fout_epll))
+		goto out;
+
+	clk_set_rate(fout_epll, rate);
+out:
+	clk_put(fout_epll);
+
+	return 0;
+}
+#endif /* CONFIG_SND_SAMSUNG_PCM_USE_EPLL */
 static int smdk_wm8994_pcm_hw_params(struct snd_pcm_substream *substream,
 			      struct snd_pcm_hw_params *params)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+#ifdef CONFIG_SND_SAMSUNG_PCM_USE_EPLL
+	unsigned long epll_out_rate;
+#endif /* CONFIG_SND_SAMSUNG_PCM_USE_EPLL */
 	unsigned long mclk_freq;
-	int rfs, ret;
+	unsigned long bclk;
+	int rfs, ret , bfs;
+
 
 	switch(params_rate(params)) {
 	case 8000:
 		rfs = 512;
+		break;
+	case 44100:
+		/*rfs = 192; clock 16934400/2 ,
+			to sync with WM8994-AIF1 clock */
+		rfs = 384;
+		bfs = 32;
 		break;
 	default:
 		dev_err(cpu_dai->dev, "%s:%d Sampling Rate %u not supported!\n",
@@ -67,6 +102,7 @@ static int smdk_wm8994_pcm_hw_params(struct snd_pcm_substream *substream,
 	}
 
 	mclk_freq = params_rate(params) * rfs;
+	bclk	  = params_rate(params) * bfs;
 
 	/* Set the codec DAI configuration */
 	ret = snd_soc_dai_set_fmt(codec_dai, SND_SOC_DAIFMT_DSP_B
@@ -78,28 +114,86 @@ static int smdk_wm8994_pcm_hw_params(struct snd_pcm_substream *substream,
 	/* Set the cpu DAI configuration */
 	ret = snd_soc_dai_set_fmt(cpu_dai, SND_SOC_DAIFMT_DSP_B
 				| SND_SOC_DAIFMT_IB_NF
-				| SND_SOC_DAIFMT_CBS_CFS);
+				| SND_SOC_DAIFMT_CBS_CFS | SND_SOC_DAIFMT_GATED);
 	if (ret < 0)
 		return ret;
 
-	ret = snd_soc_dai_set_sysclk(codec_dai, WM8994_SYSCLK_FLL1,
-					mclk_freq, SND_SOC_CLOCK_IN);
-	if (ret < 0)
-		return ret;
-
+#ifndef CONFIG_SND_SAMSUNG_PCM_USE_EPLL
 	ret = snd_soc_dai_set_pll(codec_dai, WM8994_FLL1, WM8994_FLL_SRC_MCLK1,
-					SMDK_WM8994_FREQ, mclk_freq);
+			SMDK_WM8994_FREQ, mclk_freq);
+
+	if (ret < 0)
+		return ret;
+	ret = snd_soc_dai_set_sysclk(codec_dai, WM8994_SYSCLK_FLL1,
+			mclk_freq, SND_SOC_CLOCK_IN);
 	if (ret < 0)
 		return ret;
 
 	/* Set PCM source clock on CPU */
 	ret = snd_soc_dai_set_sysclk(cpu_dai, S3C_PCM_CLKSRC_MUX,
-					mclk_freq, SND_SOC_CLOCK_IN);
+			bclk, SND_SOC_CLOCK_IN);
+	if (ret < 0)
+		return ret;
+#endif
+
+#ifdef CONFIG_SND_SAMSUNG_PCM_USE_EPLL
+	switch (params_rate(params)) {
+	case 8000:
+	case 12000:
+	case 16000:
+	case 24000:
+	case 32000:
+	case 48000:
+	case 64000:
+	case 96000:
+		epll_out_rate = 49152000;
+		break;
+	case 11025:
+	case 22050:
+	case 44100:
+	case 88200:
+		epll_out_rate = 67737600;
+		break;
+	default:
+		printk(KERN_ERR "%s:%d Sampling Rate %u not supported!\n",
+				__func__, __LINE__, params_rate(params));
+		return -EINVAL;
+	}
+
+	/* AIF1CLK should be >=3MHz for optimal performance */
+	if (params_format(params) == SNDRV_PCM_FORMAT_S24_LE)
+		mclk_freq = params_rate(params) * 384;
+	else if (params_rate(params) == 8000 || params_rate(params) == 11025)
+		mclk_freq = params_rate(params) * 512;
+	else
+		mclk_freq = params_rate(params) * 256;
+
+	ret = snd_soc_dai_set_pll(codec_dai, WM8994_FLL1, WM8994_FLL_SRC_MCLK1,
+			SMDK_WM8994_FREQ, mclk_freq);
 	if (ret < 0)
 		return ret;
 
+	ret = snd_soc_dai_set_sysclk(codec_dai, WM8994_SYSCLK_FLL1,
+			mclk_freq, SND_SOC_CLOCK_IN);
+	if (ret < 0)
+		return ret;
+
+
+	/* Set EPLL clock rate */
+	ret = set_epll_rate(epll_out_rate);
+	if (ret < 0)
+		return ret;
+
+	/* Set PCM source clock on CPU */
+	ret = snd_soc_dai_set_sysclk(cpu_dai, S3C_PCM_CLKSRC_MUX,
+			bclk, SND_SOC_CLOCK_IN);
+	if (ret < 0)
+		return ret;
+#endif /* CONFIG_SND_SAMSUNG_PCM_USE_EPLL */
+
+
 	/* Set SCLK_DIV for making bclk */
-	ret = snd_soc_dai_set_clkdiv(cpu_dai, S3C_PCM_SCLK_PER_FS, rfs);
+	ret = snd_soc_dai_set_clkdiv(cpu_dai, S3C_PCM_SCLK_PER_FS, bfs);
 	if (ret < 0)
 		return ret;
 
@@ -129,16 +223,21 @@ static struct snd_soc_card smdk_pcm = {
 	.num_links = 1,
 };
 
+static struct platform_device *smdk_snd_device;
+
 static int __devinit snd_smdk_probe(struct platform_device *pdev)
 {
 	int ret = 0;
 
-	smdk_pcm.dev = &pdev->dev;
-	ret = snd_soc_register_card(&smdk_pcm);
-	if (ret) {
-		dev_err(&pdev->dev, "snd_soc_register_card failed %d\n", ret);
-		return ret;
-	}
+	smdk_snd_device = platform_device_alloc("soc-audio", -1);
+        if (!smdk_snd_device)
+                return -ENOMEM;
+
+        platform_set_drvdata(smdk_snd_device, &smdk_pcm);
+
+        ret = platform_device_add(smdk_snd_device);
+        if (ret)
+                platform_device_put(smdk_snd_device);
 
 	return 0;
 }
@@ -153,7 +252,7 @@ static int __devexit snd_smdk_remove(struct platform_device *pdev)
 static struct platform_driver snd_smdk_driver = {
 	.driver = {
 		.owner = THIS_MODULE,
-		.name = "samsung-smdk-pcm",
+                .name = "SOC-AUDIO-SAMSUNG",
 	},
 	.probe = snd_smdk_probe,
 	.remove = __devexit_p(snd_smdk_remove),

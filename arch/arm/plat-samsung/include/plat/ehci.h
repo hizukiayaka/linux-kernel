@@ -14,7 +14,17 @@
 struct s5p_ehci_platdata {
 	int (*phy_init)(struct platform_device *pdev, int type);
 	int (*phy_exit)(struct platform_device *pdev, int type);
+	int (*phy_suspend)(struct platform_device *pdev, int type);
+	int (*phy_resume)(struct platform_device *pdev, int type);
 };
+
+struct s5p_usbswitch_platdata {
+	unsigned gpio_host_detect;
+	unsigned gpio_device_detect;
+	unsigned gpio_host_vbus;
+};
+
+extern void s5p_usbswitch_set_platdata(struct s5p_usbswitch_platdata *pd);
 
 extern void s5p_ehci_set_platdata(struct s5p_ehci_platdata *pd);
 

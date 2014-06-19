@@ -111,8 +111,8 @@ int check_wakeup_irqs(void)
 		if (irqd_is_wakeup_set(&desc->irq_data)) {
 			if (desc->depth == 1 && desc->istate & IRQS_PENDING)
 				return -EBUSY;
+			}
 			continue;
-		}
 		/*
 		 * Check the non wakeup interrupts whether they need
 		 * to be masked before finally going into suspend

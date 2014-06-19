@@ -23,6 +23,7 @@
 #include <mach/regs-pmu.h>
 #include <plat/devs.h>
 
+extern struct platform_device mali_gpu_device;
 /*
  * Exynos specific wrapper around the generic power domain
  */
@@ -77,6 +78,7 @@ static struct exynos_pm_domain PD = {			\
 	.base = (void __iomem *)BASE,			\
 	.name = NAME,					\
 	.pd = {						\
+		.name = NAME,				\
 		.power_off = exynos_pd_power_off,	\
 		.power_on = exynos_pd_power_on,	\
 	},						\
@@ -131,7 +133,6 @@ static __init void exynos_pm_add_dev_to_genpd(struct platform_device *pdev,
 EXYNOS_GPD(exynos4_pd_mfc, S5P_PMU_MFC_CONF, "pd-mfc");
 EXYNOS_GPD(exynos4_pd_g3d, S5P_PMU_G3D_CONF, "pd-g3d");
 EXYNOS_GPD(exynos4_pd_lcd0, S5P_PMU_LCD0_CONF, "pd-lcd0");
-EXYNOS_GPD(exynos4_pd_lcd1, S5P_PMU_LCD1_CONF, "pd-lcd1");
 EXYNOS_GPD(exynos4_pd_tv, S5P_PMU_TV_CONF, "pd-tv");
 EXYNOS_GPD(exynos4_pd_cam, S5P_PMU_CAM_CONF, "pd-cam");
 EXYNOS_GPD(exynos4_pd_gps, S5P_PMU_GPS_CONF, "pd-gps");
@@ -140,7 +141,6 @@ static struct exynos_pm_domain *exynos4_pm_domains[] = {
 	&exynos4_pd_mfc,
 	&exynos4_pd_g3d,
 	&exynos4_pd_lcd0,
-	&exynos4_pd_lcd1,
 	&exynos4_pd_tv,
 	&exynos4_pd_cam,
 	&exynos4_pd_gps,
@@ -166,21 +166,28 @@ static __init int exynos4_pm_init_power_domain(void)
 #ifdef CONFIG_S5P_DEV_TV
 	exynos_pm_add_dev_to_genpd(&s5p_device_hdmi, &exynos4_pd_tv);
 	exynos_pm_add_dev_to_genpd(&s5p_device_mixer, &exynos4_pd_tv);
+	exynos_pm_add_dev_to_genpd(&exynos_device_sysmmu_tv, &exynos4_pd_tv);
 #endif
 #ifdef CONFIG_S5P_DEV_MFC
 	exynos_pm_add_dev_to_genpd(&s5p_device_mfc, &exynos4_pd_mfc);
+	exynos_pm_add_dev_to_genpd(&exynos_device_sysmmu_mfc_l, &exynos4_pd_mfc);
+	exynos_pm_add_dev_to_genpd(&exynos_device_sysmmu_mfc_r, &exynos4_pd_mfc);
 #endif
 #ifdef CONFIG_S5P_DEV_FIMC0
 	exynos_pm_add_dev_to_genpd(&s5p_device_fimc0, &exynos4_pd_cam);
+	exynos_pm_add_dev_to_genpd(&exynos_device_sysmmu_fimc0, &exynos4_pd_cam);
 #endif
 #ifdef CONFIG_S5P_DEV_FIMC1
 	exynos_pm_add_dev_to_genpd(&s5p_device_fimc1, &exynos4_pd_cam);
+	exynos_pm_add_dev_to_genpd(&exynos_device_sysmmu_fimc1, &exynos4_pd_cam);
 #endif
 #ifdef CONFIG_S5P_DEV_FIMC2
 	exynos_pm_add_dev_to_genpd(&s5p_device_fimc2, &exynos4_pd_cam);
+	exynos_pm_add_dev_to_genpd(&exynos_device_sysmmu_fimc2, &exynos4_pd_cam);
 #endif
 #ifdef CONFIG_S5P_DEV_FIMC3
 	exynos_pm_add_dev_to_genpd(&s5p_device_fimc3, &exynos4_pd_cam);
+	exynos_pm_add_dev_to_genpd(&exynos_device_sysmmu_fimc3, &exynos4_pd_cam);
 #endif
 #ifdef CONFIG_S5P_DEV_CSIS0
 	exynos_pm_add_dev_to_genpd(&s5p_device_mipi_csis0, &exynos4_pd_cam);
@@ -188,11 +195,12 @@ static __init int exynos4_pm_init_power_domain(void)
 #ifdef CONFIG_S5P_DEV_CSIS1
 	exynos_pm_add_dev_to_genpd(&s5p_device_mipi_csis1, &exynos4_pd_cam);
 #endif
-#ifdef CONFIG_S5P_DEV_G2D
-	exynos_pm_add_dev_to_genpd(&s5p_device_g2d, &exynos4_pd_lcd0);
+#ifdef CONFIG_MALI400
+	exynos_pm_add_dev_to_genpd(&mali_gpu_device, &exynos4_pd_g3d);
 #endif
 #ifdef CONFIG_S5P_DEV_JPEG
 	exynos_pm_add_dev_to_genpd(&s5p_device_jpeg, &exynos4_pd_cam);
+	exynos_pm_add_dev_to_genpd(&exynos_device_sysmmu_jpeg, &exynos4_pd_cam);
 #endif
 	return 0;
 }

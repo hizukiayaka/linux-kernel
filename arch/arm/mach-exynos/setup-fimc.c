@@ -26,8 +26,8 @@ int exynos4_fimc_setup_gpio(enum s5p_camport_id id)
 		break;
 
 	case S5P_CAMPORT_B:
-		gpio8 = EXYNOS4_GPE0(0); /* DATA[0:7] */
-		gpio5 = EXYNOS4_GPE1(0); /* PCLK, VSYNC, HREF, CLKOUT, FIELD */
+		gpio8 = EXYNOS4210_GPE0(0); /* DATA[0:7] */
+		gpio5 = EXYNOS4210_GPE1(0); /* PCLK, VSYNC, HREF, CLKOUT, FIELD */
 		sfn = S3C_GPIO_SFN(3);
 		break;
 
@@ -36,9 +36,22 @@ int exynos4_fimc_setup_gpio(enum s5p_camport_id id)
 		return -EINVAL;
 	}
 
-	ret = s3c_gpio_cfgall_range(gpio8, 8, sfn, S3C_GPIO_PULL_UP);
+	ret = s3c_gpio_cfgall_range(gpio8, 8, sfn, S3C_GPIO_PULL_NONE);
 	if (ret)
 		return ret;
 
-	return s3c_gpio_cfgall_range(gpio5, 5, sfn, S3C_GPIO_PULL_UP);
+	ret = s3c_gpio_cfgall_range(EXYNOS4X12_GPM0(0), 8, S3C_GPIO_SFN(3), S3C_GPIO_PULL_NONE);
+	if (ret)
+		return ret;
+	ret = s3c_gpio_cfgall_range(EXYNOS4X12_GPM1(0), 2, S3C_GPIO_SFN(3), S3C_GPIO_PULL_NONE);
+	if (ret)
+		return ret;
+	ret = s3c_gpio_cfgall_range(EXYNOS4X12_GPM2(0), 3, S3C_GPIO_SFN(3), S3C_GPIO_PULL_NONE);
+	if (ret)
+		return ret;
+	ret =  s3c_gpio_cfgall_range(gpio5, 8, sfn, S3C_GPIO_PULL_NONE);
+	if (ret)
+		return ret;
+
+	return ret;
 }

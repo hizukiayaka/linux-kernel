@@ -25,18 +25,29 @@
 #include <asm/hardware/gic.h>
 #include <asm/smp_plat.h>
 #include <asm/smp_scu.h>
+#include <asm/unified.h>
 
 #include <mach/hardware.h>
 #include <mach/regs-clock.h>
 #include <mach/regs-pmu.h>
+#include <mach/smc.h>
 
 #include <plat/cpu.h>
+#ifdef CONFIG_SEC_WATCHDOG_RESET
+#include <plat/regs-watchdog.h>
+#endif
+
 
 extern void exynos4_secondary_startup(void);
 
 #define CPU1_BOOT_REG		(samsung_rev() == EXYNOS4210_REV_1_1 ? \
 				S5P_INFORM5 : S5P_VA_SYSRAM)
+struct _cpu_boot_info {
+        void __iomem *power_base;
+        void __iomem *boot_base;
+};
 
+struct _cpu_boot_info cpu_boot_info[NR_CPUS];
 /*
  * control for which core is the next to come out of the secondary
  * boot "holding pen"
@@ -89,6 +100,9 @@ void __cpuinit platform_secondary_init(unsigned int cpu)
 int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
 {
 	unsigned long timeout;
+#ifdef CONFIG_SEC_WATCHDOG_RESET
+        unsigned int tmp_wtcon;
+#endif
 
 	/*
 	 * Set synchronisation state between this boot processor
@@ -96,6 +110,9 @@ int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
 	 */
 	spin_lock(&boot_lock);
 
+#ifdef CONFIG_SEC_WATCHDOG_RESET
+        tmp_wtcon = __raw_readl(S3C2410_WTCON);
+#endif
 	/*
 	 * The secondary processor is waiting to be released from
 	 * the holding pen - release it, then wait for it to flag
@@ -105,15 +122,14 @@ int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
 	 * "cpu" is Linux's internal ID.
 	 */
 	write_pen_release(cpu_logical_map(cpu));
-
-	if (!(__raw_readl(S5P_ARM_CORE1_STATUS) & S5P_CORE_LOCAL_PWR_EN)) {
+	if (!(__raw_readl(S5P_ARM_CORE_STATUS(cpu)) & S5P_CORE_LOCAL_PWR_EN)) {
 		__raw_writel(S5P_CORE_LOCAL_PWR_EN,
-			     S5P_ARM_CORE1_CONFIGURATION);
+			     S5P_ARM_CORE_CONFIGURATION(cpu));
 
 		timeout = 10;
 
 		/* wait max 10 ms until cpu1 is on */
-		while ((__raw_readl(S5P_ARM_CORE1_STATUS)
+		while ((__raw_readl(S5P_ARM_CORE_STATUS(cpu))
 			& S5P_CORE_LOCAL_PWR_EN) != S5P_CORE_LOCAL_PWR_EN) {
 			if (timeout-- == 0)
 				break;
@@ -137,9 +153,15 @@ int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
 	while (time_before(jiffies, timeout)) {
 		smp_rmb();
 
+#ifdef CONFIG_ARM_TRUSTZONE
+		if (soc_is_exynos4412())
+			exynos_smc(SMC_CMD_CPU1BOOT, cpu, 0, 0);
+		else
+			exynos_smc(SMC_CMD_CPU1BOOT, 0, 0, 0);
+#endif
 		__raw_writel(virt_to_phys(exynos4_secondary_startup),
-			CPU1_BOOT_REG);
-		gic_raise_softirq(cpumask_of(cpu), 1);
+                             cpu_boot_info[cpu].boot_base);
+		arch_send_wakeup_ipi_mask(cpumask_of(cpu));
 
 		if (pen_release == -1)
 			break;
@@ -147,6 +169,9 @@ int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
 		udelay(10);
 	}
 
+#ifdef CONFIG_SEC_WATCHDOG_RESET
+        __raw_writel(tmp_wtcon, S3C2410_WTCON);
+#endif
 	/*
 	 * now the secondary core is starting up let it run its
 	 * calibrations, then wait for it to finish
@@ -189,12 +214,25 @@ void __init platform_smp_prepare_cpus(unsigned int max_cpus)
 	if (!soc_is_exynos5250())
 		scu_enable(scu_base_addr());
 
+	unsigned int i;
 	/*
 	 * Write the address of secondary startup into the
 	 * system-wide flags register. The boot monitor waits
 	 * until it receives a soft interrupt, and then the
 	 * secondary CPU branches to this address.
 	 */
-	__raw_writel(virt_to_phys(exynos4_secondary_startup),
-			CPU1_BOOT_REG);
+	 /* Set up secondary boot base and core power cofiguration base address */
+        for (i = 1; i < max_cpus; i++) {
+#ifdef CONFIG_ARM_TRUSTZONE
+		cpu_boot_info[i].boot_base = S5P_VA_SYSRAM_NS + 0x1C;
+#else
+        	if (soc_is_exynos4210() && (samsung_rev() >= EXYNOS4210_REV_1_1))
+	       		cpu_boot_info[i].boot_base = S5P_INFORM5;
+	        else
+			cpu_boot_info[i].boot_base = S5P_VA_SYSRAM;
+#endif
+                if (soc_is_exynos4412())
+                        cpu_boot_info[i].boot_base += (0x4 * i);
+                cpu_boot_info[i].power_base = S5P_ARM_CORE_CONFIGURATION(i);
+        }
 }

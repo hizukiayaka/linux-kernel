@@ -32,6 +32,15 @@ struct pixcir_i2c_ts_data {
 	bool exiting;
 };
 
+static struct pixcir_i2c_ts_data *ts_data;
+
+static void pixcir_ts_swap(u16 *x1, u16 *y1)
+{
+	*y1 = *x1 + *y1;
+	*x1 = *y1 - *x1;
+	*y1 = *y1 - *x1;
+}
+
 static void pixcir_ts_poscheck(struct pixcir_i2c_ts_data *data)
 {
 	struct pixcir_i2c_ts_data *tsdata = data;
@@ -61,6 +70,16 @@ static void pixcir_ts_poscheck(struct pixcir_i2c_ts_data *data)
 		u16 posy1 = (rdbuf[5] << 8) | rdbuf[4];
 		u16 posx2 = (rdbuf[7] << 8) | rdbuf[6];
 		u16 posy2 = (rdbuf[9] << 8) | rdbuf[8];
+		
+		/* HACK 
+ 		* Even though Tango M32 specification gives data in following order
+ 		* {touch, old_touch, x1, y1, x2, y2, ...}, we are not receiving data in
+ 		* this order, may be bacause of worng orientation of LCD and touch panel
+ 		* following hack will give us correct x,y coordinates
+ 		*/ 	
+		pixcir_ts_swap(&posx1, &posy1);
+		pixcir_ts_swap(&posx2, &posy2);
+		posx1 = tsdata->chip->x_max - posx1;
 
 		input_report_key(tsdata->input, BTN_TOUCH, 1);
 		input_report_abs(tsdata->input, ABS_X, posx1);
@@ -71,6 +90,8 @@ static void pixcir_ts_poscheck(struct pixcir_i2c_ts_data *data)
 		input_mt_sync(tsdata->input);
 
 		if (touch == 2) {
+			posx2 = tsdata->chip->x_max - posx2;
+
 			input_report_abs(tsdata->input,
 					 ABS_MT_POSITION_X, posx2);
 			input_report_abs(tsdata->input,
@@ -100,21 +121,29 @@ static irqreturn_t pixcir_ts_isr(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-#ifdef CONFIG_PM_SLEEP
+#ifdef CONFIG_PM
+#if defined(CONFIG_EXYNOS_LPA)
+int pixcir_i2c_ts_early_suspend(void)
+#else
 static int pixcir_i2c_ts_suspend(struct device *dev)
+#endif
 {
-	struct i2c_client *client = to_i2c_client(dev);
-
+	struct i2c_client *client = ts_data->client;
+	disable_irq(client->irq);
 	if (device_may_wakeup(&client->dev))
 		enable_irq_wake(client->irq);
 
 	return 0;
 }
 
+#if defined(CONFIG_EXYNOS_LPA)
+int pixcir_i2c_ts_early_resume(void)
+#else
 static int pixcir_i2c_ts_resume(struct device *dev)
+#endif
 {
-	struct i2c_client *client = to_i2c_client(dev);
-
+	struct i2c_client *client = ts_data->client;
+	enable_irq(client->irq);
 	if (device_may_wakeup(&client->dev))
 		disable_irq_wake(client->irq);
 
@@ -122,8 +151,10 @@ static int pixcir_i2c_ts_resume(struct device *dev)
 }
 #endif
 
+#ifndef CONFIG_EXYNOS_LPA
 static SIMPLE_DEV_PM_OPS(pixcir_dev_pm_ops,
 			 pixcir_i2c_ts_suspend, pixcir_i2c_ts_resume);
+#endif
 
 static int __devinit pixcir_i2c_ts_probe(struct i2c_client *client,
 					 const struct i2c_device_id *id)
@@ -177,7 +208,8 @@ static int __devinit pixcir_i2c_ts_probe(struct i2c_client *client,
 		goto err_free_irq;
 
 	i2c_set_clientdata(client, tsdata);
-	device_init_wakeup(&client->dev, 1);
+	ts_data = tsdata;
+	device_init_wakeup(&client->dev, 0);
 
 	return 0;
 
@@ -215,7 +247,9 @@ static struct i2c_driver pixcir_i2c_ts_driver = {
 	.driver = {
 		.owner	= THIS_MODULE,
 		.name	= "pixcir_ts",
+#ifndef CONFIG_EXYNOS_LPA
 		.pm	= &pixcir_dev_pm_ops,
+#endif
 	},
 	.probe		= pixcir_i2c_ts_probe,
 	.remove		= __devexit_p(pixcir_i2c_ts_remove),

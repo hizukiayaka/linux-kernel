@@ -21,6 +21,7 @@
 #include <linux/interrupt.h>
 #include <linux/dma-mapping.h>
 #include <linux/dmaengine.h>
+#include <linux/interrupt.h>
 #include <linux/amba/bus.h>
 #include <linux/amba/pl330.h>
 #include <linux/pm_runtime.h>
@@ -1899,6 +1900,7 @@ static void *pl330_request_channel(const struct pl330_info *pi)
 	}
 
 	spin_unlock_irqrestore(&pl330->lock, flags);
+	pm_runtime_get_sync(pl330->pinfo->dev);
 
 	return thrd;
 }
@@ -1935,6 +1937,7 @@ static void pl330_release_channel(void *ch_id)
 	_free_event(thrd, thrd->ev);
 	thrd->free = true;
 	spin_unlock_irqrestore(&pl330->lock, flags);
+	pm_runtime_put(pl330->pinfo->dev);
 }
 
 /* Initialize the structure for PL330 configuration, that can be used
@@ -2852,6 +2855,28 @@ static irqreturn_t pl330_irq_handler(int irq, void *data)
 		return IRQ_NONE;
 }
 
+int pl330_dma_getposition(struct dma_chan *chan,
+		dma_addr_t *src, dma_addr_t *dst)
+{
+	struct dma_pl330_chan *pch = to_pchan(chan);
+	struct pl330_info *pi;
+	void __iomem *regs;
+	struct pl330_thread *thrd;
+
+	if (unlikely(!pch))
+		return -EINVAL;
+
+	thrd = pch->pl330_chid;
+	pi = &pch->dmac->pif;
+	regs = pi->base;
+
+	*src = readl(regs + SA(thrd->id));
+	*dst = readl(regs + DA(thrd->id));
+
+	return 0;
+}
+EXPORT_SYMBOL(pl330_dma_getposition);
+
 static int __devinit
 pl330_probe(struct amba_device *adev, const struct amba_id *id)
 {
@@ -2980,6 +3005,7 @@ pl330_probe(struct amba_device *adev, const struct amba_id *id)
 		pi->pcfg.data_bus_width / 8, pi->pcfg.num_chan,
 		pi->pcfg.num_peri, pi->pcfg.num_events);
 
+	pm_runtime_put(&adev->dev);
 	return 0;
 
 probe_err5:

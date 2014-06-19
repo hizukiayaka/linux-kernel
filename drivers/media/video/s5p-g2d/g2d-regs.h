@@ -22,6 +22,8 @@
 /* Command Registers */
 #define BITBLT_START_REG	0x0100	/* BitBLT Start reg */
 #define BITBLT_COMMAND_REG	0x0104	/* Command reg for BitBLT */
+#define BLEND_FUNCTION_REG	0x0108  /* Blend function reg */
+#define ROUND_MODE_REG		0x010C  /* Round mode reg */
 
 /* Parameter Setting Registers (Rotate & Direction) */
 #define ROTATE_REG		0x0200	/* Rotation reg */
@@ -35,6 +37,9 @@
 #define SRC_COLOR_MODE_REG	0x030C	/* Src Image Color Mode reg */
 #define SRC_LEFT_TOP_REG	0x0310	/* Src Left Top Coordinate reg */
 #define SRC_RIGHT_BOTTOM_REG	0x0314	/* Src Right Bottom Coordinate reg */
+#define SRC_SCALE_CTRL_REG	0x0328  /* Src scaling mode select reg */
+#define SRC_XSCALE_REG		0x032C  /* Src X scale ratio reg */
+#define SRC_YSCALE_REG		0x0330  /* Src Y scale ratio reg */
 
 /* Parameter Setting Registers (Dest) */
 #define DST_SELECT_REG		0x0400	/* Dest Image Selection reg */
@@ -54,6 +59,9 @@
 /* Parameter Setting Registers (Mask) */
 #define MASK_BASE_ADDR_REG	0x0520	/* Mask Base Address reg */
 #define MASK_STRIDE_REG		0x0524	/* Mask Stride reg */
+#define MASK_LEFT_TOP_REG	0x0528	/* Mask Left Top Coordinate reg */
+#define MASK_RIGHT_BOTTOM_REG	0x052C	/* Mask Right Bottom Coordinate reg */
+#define MASK_MODE_REG		0x0530  /* Mask color and bit mode reg */
 
 /* Parameter Setting Registers (Clipping Window) */
 #define CW_LT_REG		0x0600	/* LeftTop coordinates of Clip Window */
@@ -69,6 +77,7 @@
 #define FG_COLOR_REG		0x0700	/* Foreground Color reg */
 #define BG_COLOR_REG		0x0704	/* Background Color reg */
 #define BS_COLOR_REG		0x0708	/* Blue Screen Color reg */
+#define SF_COLOR_REG		0x070C /* solid color fill */
 
 /* Parameter Setting Registers (Color Key) */
 #define SRC_COLORKEY_CTRL_REG	0x0710	/* Src Colorkey control reg */
@@ -81,6 +90,48 @@
 								Min reg */
 #define DST_COLORKEY_DR_MAX_REG	0x0724	/* Dest Colorkey Decision Reference
 								Max reg */
+
+/* Rotation and Flip */
+
+#define ROTATE_SRC_90		(1 << 0)
+#define ROTATE_MASK_90		(1 << 8)
+
+#define SRC_X_DIR_NEGATIVE	(1 << 0)
+#define SRC_Y_DIR_NEGATIVE	(1 << 1)
+#define SRC_XY_DIR_NEGATIVE	(SRC_X_DIR_NEGATIVE | SRC_Y_DIR_NEGATIVE)
+
+/* commands */
+#define SOLID_FILL		(1 << 28)
+#define ALPHA_BLEND		(1 << 20)
+#define OPAQUE			(0 << 12)
+#define TRANSPARENT		(1 << 12)
+#define BLUESCREEN		(2 << 12)
+#define CLIP			(1 << 8)
+#define DITHER			(1 << 3)
+#define NORMAL_MASK		(1 << 1)
+#define ROP4_MSK		(1 << 0)
+
+/* FIMG2D_BLEND_FUNCTION_REG */
+#define FIMG2D_WINCE_SRC_OVER                   (1 << 22)
+#define FIMG2D_DARKEN                           (1 << 21)
+#define FIMG2D_LIGHTEN                          (1 << 20)
+#define FIMG2D_INV_DST_COEFF                    (1 << 18)
+#define FIMG2D_INV_SRC_COEFF                    (1 << 16)
+
+#define FIMG2D_DST_COEFF_DA_SHIFT               (14)
+#define FIMG2D_DST_COEFF_SA_SHIFT               (12)
+#define FIMG2D_SRC_COEFF_DA_SHIFT               (6)
+#define FIMG2D_SRC_COEFF_SA_SHIFT               (4)
+
+#define FIMG2D_DST_COEFF_SHIFT                  (8)
+#define FIMG2D_SRC_COEFF_SHIFT                  (0)
+
+/* FIMG2D_ROUND_MODE_REG */
+#define FIMG2D_PREMULT_ROUND_MASK               (3 << 4)
+#define FIMG2D_PREMULT_ROUND_SHIFT              (4)
+
+#define FIMG2D_BLEND_ROUND_MASK                 (3 << 0)
+#define FIMG2D_BLEND_ROUND_SHIFT                (0)
 
 /* Color mode values */
 
@@ -103,6 +154,9 @@
 /* ROP4 operation values */
 #define ROP4_COPY		0xCCCC
 #define ROP4_INVERT		0x3333
+
+/* Alpha blending values */
+#define DEFAULT_ALPHA		0xff
 
 /* Hardware limits */
 #define MAX_WIDTH		8000

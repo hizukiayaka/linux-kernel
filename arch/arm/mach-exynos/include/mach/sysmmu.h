@@ -11,6 +11,7 @@
 
 #ifndef _ARM_MACH_EXYNOS_SYSMMU_H_
 #define _ARM_MACH_EXYNOS_SYSMMU_H_
+#include <linux/pm_runtime.h>
 
 struct sysmmu_platform_data {
 	char *dbgname;
@@ -56,6 +57,30 @@ static inline void platform_set_sysmmu(
 	dev->archdata.iommu = sysmmu;
 }
 #endif
+
+#ifdef CONFIG_EXYNOS_IOMMU
+static inline int platform_sysmmu_on(struct device *dev)
+{
+        return pm_runtime_get_sync(dev->archdata.iommu);
+}
+static inline int platform_sysmmu_off(struct device *dev)
+{
+        return pm_runtime_put_sync(dev->archdata.iommu);
+}
+#else
+static inline int platform_sysmmu_on(struct device *dev)
+{
+        return 0;
+}
+static inline int platform_sysmmu_off(struct device *dev)
+{
+        return 0;
+}
+#endif
+
+int __init s5p_create_iommu_mapping(struct device *client, dma_addr_t base,
+				    unsigned int size, int order);
+
 
 #else /* !CONFIG_EXYNOS_DEV_SYSMMU */
 #define platform_set_sysmmu(dev, sysmmu) do { } while (0)

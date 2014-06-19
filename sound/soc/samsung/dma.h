@@ -21,4 +21,8 @@ struct s3c_dma_params {
 	struct samsung_dma_ops *ops;
 };
 
+int samsung_asoc_platform_register(struct device *dev);
+
+//#define pr_debug(fmt...) printk(fmt)
+
 #endif

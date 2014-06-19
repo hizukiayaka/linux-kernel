@@ -104,6 +104,7 @@
 /* Frame rate */
 #define PARM_MON_FPS		I2C_REG(CAT_PARAM, 0x02, 1)
 #define REG_FPS_30		0x02
+#define REG_FPS_15		0x03
 
 /* Video bus between the sensor and a host processor */
 #define PARM_INTERFACE		I2C_REG(CAT_PARAM, 0x00, 1)

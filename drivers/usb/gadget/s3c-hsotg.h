@@ -15,6 +15,11 @@
 #ifndef __REGS_USB_HSOTG_H
 #define __REGS_USB_HSOTG_H __FILE__
 
+#include <linux/regulator/consumer.h>
+
+#include <linux/usb/gadget.h>
+#include <linux/platform_data/s3c-hsotg.h>
+
 #define HSOTG_REG(x) (x)
 
 #define GOTGCTL				HSOTG_REG(0x000)
@@ -55,6 +60,7 @@
 #define GUSBCFG_HNPCap				(1 << 9)
 #define GUSBCFG_SRPCap				(1 << 8)
 #define GUSBCFG_PHYIf16			(1 << 3)
+#define GUSBCFG_PHYIf8			(0 << 3)
 #define GUSBCFG_TOutCal_MASK			(0x7 << 0)
 #define GUSBCFG_TOutCal_SHIFT			(0)
 #define GUSBCFG_TOutCal_LIMIT			(0x7)
@@ -373,5 +379,64 @@
 #define DTXFSTS(_a)			HSOTG_REG(0x918 + ((_a) * 0x20))
 
 #define EPFIFO(_a)			HSOTG_REG(0x1000 + ((_a) * 0x1000))
+
+static const char * const s3c_hsotg_supply_names[] = {
+	"vusb_d",		/* digital USB supply, 1.2V */
+	"vusb_a",		/* analog USB supply, 1.1V */
+};
+
+/**
+ * struct s3c_hsotg - driver state.
+ * @dev: The parent device supplied to the probe function
+ * @driver: USB gadget driver
+ * @plat: The platform specific configuration data.
+ * @regs: The memory area mapped for accessing registers.
+ * @irq: The IRQ number we are using
+ * @supplies: Definition of USB power supplies
+ * @dedicated_fifos: Set if the hardware has dedicated IN-EP fifos.
+ * @num_of_eps: Number of available EPs (excluding EP0)
+ * @debug_root: root directrory for debugfs.
+ * @debug_file: main status file for debugfs.
+ * @debug_fifo: FIFO status file for debugfs.
+ * @ep0_reply: Request used for ep0 reply.
+ * @ep0_buff: Buffer for EP0 reply data, if needed.
+ * @ctrl_buff: Buffer for EP0 control requests.
+ * @ctrl_req: Request for EP0 control packets.
+ * @setup: NAK management for EP0 SETUP
+ * @last_rst: Time of last reset
+ * @eps: The endpoints being supplied to the gadget framework
+ */
+struct s3c_hsotg {
+	struct device		 *dev;
+	struct usb_gadget_driver *driver;
+	struct s3c_hsotg_plat	 *plat;
+
+	spinlock_t              lock;
+
+	void __iomem		*regs;
+	int			irq;
+	struct clk		*clk;
+
+	struct regulator_bulk_data supplies[ARRAY_SIZE(s3c_hsotg_supply_names)];
+
+	unsigned int		dedicated_fifos:1;
+	unsigned char           num_of_eps;
+
+	struct dentry		*debug_root;
+	struct dentry		*debug_file;
+	struct dentry		*debug_fifo;
+
+	struct usb_request	*ep0_reply;
+	struct usb_request	*ctrl_req;
+	u8			ep0_buff[8];
+	u8			ctrl_buff[8];
+
+	struct usb_gadget	gadget;
+	unsigned int		setup;
+	unsigned long           last_rst;
+	struct s3c_hsotg_ep	*eps;
+	int 			pullup_count;
+	bool			connect;
+};
 
 #endif /* __REGS_USB_HSOTG_H */

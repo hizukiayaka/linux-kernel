@@ -16,12 +16,19 @@
 #include <linux/suspend.h>
 #include <plat/pm.h>
 
+#include <mach/regs-clock.h>
+
 #define PFX "s5p pm: "
 
 /* s3c_pm_configure_extint
  *
  * configure all external interrupt pins
 */
+
+static struct sleep_save exynos4_peril0_save[] = {
+	SAVE_ITEM(EXYNOS4_CLKSRC_PERIL0),
+	SAVE_ITEM(EXYNOS4_CLKDIV_PERIL0),
+};
 
 void s3c_pm_configure_extint(void)
 {
@@ -30,11 +37,11 @@ void s3c_pm_configure_extint(void)
 
 void s3c_pm_restore_core(void)
 {
-	/* nothing here yet */
+	s3c_pm_do_restore_core(exynos4_peril0_save, ARRAY_SIZE(exynos4_peril0_save));
 }
 
 void s3c_pm_save_core(void)
 {
-	/* nothing here yet */
+	s3c_pm_do_save(exynos4_peril0_save, ARRAY_SIZE(exynos4_peril0_save));
 }
 

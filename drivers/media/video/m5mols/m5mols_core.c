@@ -72,6 +72,7 @@ static struct v4l2_mbus_framefmt m5mols_default_ffmt[M5MOLS_RESTYPE_MAX] = {
 #define SIZE_DEFAULT_FFMT	ARRAY_SIZE(m5mols_default_ffmt)
 
 static const struct m5mols_resolution m5mols_reg_res[] = {
+#if 0
 	{ 0x01, M5MOLS_RESTYPE_MONITOR, 128, 96 },	/* SUB-QCIF */
 	{ 0x03, M5MOLS_RESTYPE_MONITOR, 160, 120 },	/* QQVGA */
 	{ 0x05, M5MOLS_RESTYPE_MONITOR, 176, 144 },	/* QCIF */
@@ -91,6 +92,9 @@ static const struct m5mols_resolution m5mols_reg_res[] = {
 	{ 0x25, M5MOLS_RESTYPE_MONITOR, 1920, 1080 },	/* 1080p */
 	{ 0x29, M5MOLS_RESTYPE_MONITOR, 3264, 2448 },	/* 2.63fps 8M */
 	{ 0x39, M5MOLS_RESTYPE_MONITOR, 800, 602 },	/* AHS_MON debug */
+	{ 0x21, M5MOLS_RESTYPE_MONITOR, 1280, 720 },	/* HD */
+#endif
+	{ 0x25, M5MOLS_RESTYPE_MONITOR, 1920, 1080 },	/* 1080p */
 
 	{ 0x02, M5MOLS_RESTYPE_CAPTURE, 320, 240 },	/* QVGA */
 	{ 0x04, M5MOLS_RESTYPE_CAPTURE, 400, 240 },	/* WQVGA */
@@ -372,8 +376,8 @@ static int m5mols_reg_mode(struct v4l2_subdev *sd, u8 mode)
 int m5mols_set_mode(struct m5mols_info *info, u8 mode)
 {
 	struct v4l2_subdev *sd = &info->sd;
-	int ret = -EINVAL;
-	u8 reg;
+	int ret = -EINVAL,i;
+	u8 reg,val;
 
 	if (mode < REG_PARAMETER || mode > REG_CAPTURE)
 		return ret;
@@ -385,27 +389,63 @@ int m5mols_set_mode(struct m5mols_info *info, u8 mode)
 	switch (reg) {
 	case REG_PARAMETER:
 		ret = m5mols_reg_mode(sd, REG_MONITOR);
+		 for (i = 100; i; i--) {
+                                m5mols_read_u8(sd, SYSTEM_SYSMODE,&val);
+                                if (val == REG_MONITOR)
+                                        break;
+				msleep(1);
+                        }
 		if (mode == REG_MONITOR)
 			break;
 		if (!ret)
 			ret = m5mols_reg_mode(sd, REG_CAPTURE);
+		 for (i = 100; i; i--) {
+                                m5mols_read_u8(sd, SYSTEM_SYSMODE,&val);
+                                if (val == REG_CAPTURE)
+                                        break;
+				msleep(1);
+                        }
 		break;
 
 	case REG_MONITOR:
 		if (mode == REG_PARAMETER) {
 			ret = m5mols_reg_mode(sd, REG_PARAMETER);
+		 for (i = 100; i; i--) {
+                                m5mols_read_u8(sd, SYSTEM_SYSMODE,&val);
+                                if (val == REG_PARAMETER)
+                                        break;
+				msleep(1);
+                        }
 			break;
 		}
 
 		ret = m5mols_reg_mode(sd, REG_CAPTURE);
+		 for (i = 100; i; i--) {
+                                m5mols_read_u8(sd, SYSTEM_SYSMODE,&val);
+                                if (val == REG_MONITOR)
+                                        break;
+				msleep(1);
+                        }
 		break;
 
 	case REG_CAPTURE:
 		ret = m5mols_reg_mode(sd, REG_MONITOR);
+		 for (i = 100; i; i--) {
+                                m5mols_read_u8(sd, SYSTEM_SYSMODE,&val);
+                                if (val == REG_MONITOR)
+                                        break;
+				msleep(1);
+                        }
 		if (mode == REG_MONITOR)
 			break;
 		if (!ret)
 			ret = m5mols_reg_mode(sd, REG_PARAMETER);
+		 for (i = 100; i; i--) {
+                                m5mols_read_u8(sd, SYSTEM_SYSMODE,&val);
+                                if (val == REG_PARAMETER)
+                                        break;
+				msleep(1);
+                        }
 		break;
 
 	default:
@@ -415,6 +455,12 @@ int m5mols_set_mode(struct m5mols_info *info, u8 mode)
 	if (!ret)
 		info->mode = mode;
 
+		 for (i = 100; i; i--) {
+                                m5mols_read_u8(sd, SYSTEM_SYSMODE,&val);
+                                if (val == mode)
+                                        break;
+                                msleep(10);
+                        }
 	return ret;
 }
 
@@ -569,6 +615,10 @@ static int m5mols_set_fmt(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh,
 	enum m5mols_restype type;
 	u32 resolution = 0;
 	int ret;
+	if(format->reserved[0] == 1920)
+		info->is1080p = true;
+	else
+		info->is1080p = false;
 
 	ret = __find_resolution(sd, format, &type, &resolution);
 	if (ret < 0)
@@ -648,8 +698,12 @@ static int m5mols_start_monitor(struct m5mols_info *info)
 	ret = m5mols_set_mode(info, REG_PARAMETER);
 	if (!ret)
 		ret = m5mols_write(sd, PARM_MON_SIZE, info->resolution);
-	if (!ret)
-		ret = m5mols_write(sd, PARM_MON_FPS, REG_FPS_30);
+	if (!ret) {
+		if(info->is1080p)
+			ret = m5mols_write(sd, PARM_MON_FPS, REG_FPS_15);
+		else
+			ret = m5mols_write(sd, PARM_MON_FPS, REG_FPS_30);
+	}
 	if (!ret)
 		ret = m5mols_set_mode(info, REG_MONITOR);
 	if (!ret)
@@ -686,7 +740,7 @@ static int m5mols_sensor_power(struct m5mols_info *info, bool enable)
 	struct v4l2_subdev *sd = &info->sd;
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	const struct m5mols_platform_data *pdata = info->pdata;
-	int ret;
+	int ret=0;
 
 	if (info->power == enable)
 		return 0;
@@ -698,21 +752,22 @@ static int m5mols_sensor_power(struct m5mols_info *info, bool enable)
 				return ret;
 		}
 
+/*
 		ret = regulator_bulk_enable(ARRAY_SIZE(supplies), supplies);
 		if (ret) {
 			info->set_power(&client->dev, 0);
 			return ret;
 		}
-
-		gpio_set_value(pdata->gpio_reset, !pdata->reset_polarity);
-		info->power = 1;
+*/
+//		gpio_set_value(pdata->gpio_reset, !pdata->reset_polarity);
+//		info->power = 1;
 
 		return ret;
 	}
 
-	ret = regulator_bulk_disable(ARRAY_SIZE(supplies), supplies);
-	if (ret)
-		return ret;
+//	ret = regulator_bulk_disable(ARRAY_SIZE(supplies), supplies);
+//	if (ret)
+//		return ret;
 
 	if (info->set_power)
 		info->set_power(&client->dev, 0);
@@ -900,11 +955,11 @@ static int __devinit m5mols_probe(struct i2c_client *client,
 	}
 	gpio_direction_output(pdata->gpio_reset, pdata->reset_polarity);
 
-	ret = regulator_bulk_get(&client->dev, ARRAY_SIZE(supplies), supplies);
-	if (ret) {
-		dev_err(&client->dev, "Failed to get regulators: %d\n", ret);
-		goto out_gpio;
-	}
+//	ret = regulator_bulk_get(&client->dev, ARRAY_SIZE(supplies), supplies);
+//	if (ret) {
+//		dev_err(&client->dev, "Failed to get regulators: %d\n", ret);
+//		goto out_gpio;
+//	}
 
 	sd = &info->sd;
 	v4l2_i2c_subdev_init(sd, client, &m5mols_ops);

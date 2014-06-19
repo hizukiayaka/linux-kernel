@@ -167,6 +167,16 @@ static struct mfc_control controls[] = {
 		.default_value = 1,
 		.is_volatile = 1,
 	},
+        {
+                .id = V4L2_CID_CODEC_FRAME_TAG,
+                .type = V4L2_CTRL_TYPE_INTEGER,
+                .name = "Frame Tag",
+                .minimum = 0,
+                .maximum = INT_MAX,
+                .step = 1,
+                .default_value = 0,
+                .is_volatile = 1,
+        },
 };
 
 #define NUM_CTRLS ARRAY_SIZE(controls)
@@ -564,6 +574,23 @@ static int vidioc_dqbuf(struct file *file, void *priv, struct v4l2_buffer *buf)
 	return -EINVAL;
 }
 
+/* Export DMA buffer */
+static int vidioc_expbuf(struct file *file, void *priv,
+	struct v4l2_exportbuffer *eb)
+{
+	struct s5p_mfc_ctx *ctx = fh_to_ctx(priv);
+	int ret;
+
+	if (eb->mem_offset < DST_QUEUE_OFF_BASE)
+		return vb2_expbuf(&ctx->vq_src, eb);
+
+	eb->mem_offset -= DST_QUEUE_OFF_BASE;
+	ret = vb2_expbuf(&ctx->vq_dst, eb);
+	eb->mem_offset += DST_QUEUE_OFF_BASE;
+
+	return ret;
+}
+
 /* Stream on */
 static int vidioc_streamon(struct file *file, void *priv,
 			   enum v4l2_buf_type type)
@@ -638,6 +665,9 @@ static int s5p_mfc_dec_s_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_MPEG_VIDEO_DECODER_SLICE_INTERFACE:
 		ctx->slice_interface = ctrl->val;
 		break;
+        case V4L2_CID_CODEC_FRAME_TAG:
+                ctx->frame_tag = ctrl->val;
+                break;
 	default:
 		mfc_err("Invalid control 0x%08x\n", ctrl->id);
 		return -EINVAL;
@@ -672,6 +702,9 @@ static int s5p_mfc_dec_g_v_ctrl(struct v4l2_ctrl *ctrl)
 			return -EINVAL;
 		}
 		break;
+        case V4L2_CID_CODEC_FRAME_TAG:
+                ctrl->val = s5p_mfc_read_shm(ctx, GET_FRAME_TAG_TOP);
+                break;
 	}
 	return 0;
 }
@@ -739,6 +772,7 @@ static const struct v4l2_ioctl_ops s5p_mfc_dec_ioctl_ops = {
 	.vidioc_querybuf = vidioc_querybuf,
 	.vidioc_qbuf = vidioc_qbuf,
 	.vidioc_dqbuf = vidioc_dqbuf,
+	.vidioc_expbuf = vidioc_expbuf,
 	.vidioc_streamon = vidioc_streamon,
 	.vidioc_streamoff = vidioc_streamoff,
 	.vidioc_g_crop = vidioc_g_crop,
@@ -930,14 +964,14 @@ static void s5p_mfc_buf_queue(struct vb2_buffer *vb)
 
 	if (vq->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
 		mfc_buf = &ctx->src_bufs[vb->v4l2_buf.index];
-		mfc_buf->used = 0;
+		mfc_buf->flags &= ~MFC_BUF_FLAG_USED;
 		spin_lock_irqsave(&dev->irqlock, flags);
 		list_add_tail(&mfc_buf->list, &ctx->src_queue);
 		ctx->src_queue_cnt++;
 		spin_unlock_irqrestore(&dev->irqlock, flags);
 	} else if (vq->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
 		mfc_buf = &ctx->dst_bufs[vb->v4l2_buf.index];
-		mfc_buf->used = 0;
+		mfc_buf->flags &= ~MFC_BUF_FLAG_USED;
 		/* Mark destination as available for use by MFC */
 		spin_lock_irqsave(&dev->irqlock, flags);
 		set_bit(vb->v4l2_buf.index, &ctx->dec_dst_flag);

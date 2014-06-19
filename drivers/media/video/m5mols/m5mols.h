@@ -225,7 +225,7 @@ struct m5mols_info {
 
 	u8 resolution;
 	u8 mode;
-
+	bool is1080p;
 	int (*set_power)(struct device *dev, int on);
 };
 

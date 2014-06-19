@@ -21,6 +21,11 @@
 #include <linux/pwm_backlight.h>
 #include <linux/slab.h>
 
+#if defined(CONFIG_EXYNOS_LPA)
+extern int pixcir_i2c_ts_early_suspend(void);
+extern int pixcir_i2c_ts_early_resume(void);
+static bool cur_state = 1;
+#endif
 struct pwm_bl_data {
 	struct pwm_device	*pwm;
 	struct device		*dev;
@@ -51,13 +56,27 @@ static int pwm_backlight_update_status(struct backlight_device *bl)
 	if (brightness == 0) {
 		pwm_config(pb->pwm, 0, pb->period);
 		pwm_disable(pb->pwm);
+#if defined(CONFIG_EXYNOS_LPA)
+		if (cur_state == 0)
+		goto exit;
+		pixcir_i2c_ts_early_suspend();
+		cur_state = 0;
+#endif
 	} else {
 		brightness = pb->lth_brightness +
 			(brightness * (pb->period - pb->lth_brightness) / max);
 		pwm_config(pb->pwm, brightness, pb->period);
 		pwm_enable(pb->pwm);
+#if defined(CONFIG_EXYNOS_LPA)
+		if (cur_state == 1)
+		goto exit;
+		pixcir_i2c_ts_early_resume();
+		cur_state = 1;
+#endif
 	}
-
+#if defined(CONFIG_EXYNOS_LPA)
+exit:
+#endif
 	if (pb->notify_after)
 		pb->notify_after(pb->dev, brightness);
 
@@ -170,10 +189,13 @@ static int pwm_backlight_suspend(struct device *dev)
 {
 	struct backlight_device *bl = dev_get_drvdata(dev);
 	struct pwm_bl_data *pb = dev_get_drvdata(&bl->dev);
+	struct platform_pwm_backlight_data *data = dev->platform_data;
 
 	if (pb->notify)
 		pb->notify(pb->dev, 0);
 	pwm_config(pb->pwm, 0, pb->period);
+	if(data->exit)
+		data->exit(dev);
 	pwm_disable(pb->pwm);
 	if (pb->notify_after)
 		pb->notify_after(pb->dev, 0);
@@ -183,6 +205,14 @@ static int pwm_backlight_suspend(struct device *dev)
 static int pwm_backlight_resume(struct device *dev)
 {
 	struct backlight_device *bl = dev_get_drvdata(dev);
+	struct platform_pwm_backlight_data *data = dev->platform_data;
+	int ret = 0;
+
+	if(data->init){
+		ret = data->init(dev);
+	        if (ret < 0)
+        	    return ret;
+	}
 
 	backlight_update_status(bl);
 	return 0;

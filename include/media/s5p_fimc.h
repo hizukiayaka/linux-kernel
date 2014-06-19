@@ -12,6 +12,7 @@
 #ifndef S5P_FIMC_H_
 #define S5P_FIMC_H_
 
+#include <media/fimc.h>
 enum cam_bus_type {
 	FIMC_ITU_601 = 1,
 	FIMC_ITU_656,
@@ -43,6 +44,10 @@ struct s5p_fimc_isp_info {
 	u16 mux_id;
 	u16 flags;
 	u8 clk_id;
+	bool use_isp;
+        enum flite_index flite_id;
+        int (*cam_power)(int onoff);
+
 };
 
 /**
@@ -54,6 +59,7 @@ struct s5p_fimc_isp_info {
 struct s5p_platform_fimc {
 	struct s5p_fimc_isp_info *isp_info;
 	int num_clients;
+	struct s3c_platform_fimc *fimc_plat;
 };
 
 /*

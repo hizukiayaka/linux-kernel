@@ -136,7 +136,7 @@ int m5mols_start_capture(struct m5mols_info *info)
 		ret = m5mols_write(sd, CAPC_START, REG_CAP_START_MAIN);
 	if (!ret) {
 		bool captured = false;
-		unsigned int size;
+		unsigned int size[2];
 
 		/* Wait for the capture completion interrupt */
 		ret = m5mols_wait_interrupt(sd, REG_INT_CAPTURE, 2000);
@@ -144,11 +144,12 @@ int m5mols_start_capture(struct m5mols_info *info)
 			captured = true;
 			ret = m5mols_capture_info(info);
 		}
-		size = captured ? info->cap.main : 0;
+		size[0] = captured ? info->cap.main : 0;
+		size[1] = captured ? info->cap.thumb : 0;
 		v4l2_dbg(1, m5mols_debug, sd, "%s: size: %d, thumb.: %d B\n",
 			 __func__, size, info->cap.thumb);
 
-		v4l2_subdev_notify(sd, S5P_FIMC_TX_END_NOTIFY, &size);
+		v4l2_subdev_notify(sd, S5P_FIMC_TX_END_NOTIFY, size);
 	}
 
 	return ret;

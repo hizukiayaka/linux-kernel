@@ -18,6 +18,7 @@
 struct g2d_dev {
 	struct v4l2_device	v4l2_dev;
 	struct v4l2_m2m_dev	*m2m_dev;
+	struct device		*g2d;
 	struct video_device	*vfd;
 	struct mutex		mutex;
 	spinlock_t		ctrl_lock;
@@ -48,19 +49,32 @@ struct g2d_frame {
 	u32	bottom;
 	u32	right;
 	u32	size;
+	/* Selects Memory, foreground or background color to process on */
+	int	type;
 };
 
 struct g2d_ctx {
 	struct v4l2_fh fh;
 	struct g2d_dev		*dev;
 	struct v4l2_m2m_ctx     *m2m_ctx;
+	void			*alloc_ctx;
 	struct g2d_frame	in;
 	struct g2d_frame	out;
+	struct g2d_frame	msk;
 	struct v4l2_ctrl	*ctrl_hflip;
 	struct v4l2_ctrl	*ctrl_vflip;
 	struct v4l2_ctrl_handler ctrl_handler;
 	u32 rop;
 	u32 flip;
+	u32 rotation;
+	u32 alpha;
+	u32 mask;
+	u32 smode;
+	int color;
+	int porter_duff;
+	bool en_msk;
+	bool dither;
+	bool en_bs;
 };
 
 struct g2d_fmt {
@@ -70,17 +84,98 @@ struct g2d_fmt {
 	u32	hw;
 };
 
+struct bs_info {
+	int bs_mode;
+	int bs_color;
+	int bg_color;
+};
+
+/**
+ * DO NOT CHANGE THIS ORDER
+ */
+enum blit_op {
+	BLIT_OP_SOLID_FILL = 0,
+
+	BLIT_OP_CLR,
+	BLIT_OP_SRC, BLIT_OP_SRC_COPY = BLIT_OP_SRC,
+	BLIT_OP_DST,
+	BLIT_OP_SRC_OVER,
+	BLIT_OP_DST_OVER, BLIT_OP_OVER_REV = BLIT_OP_DST_OVER,
+	BLIT_OP_SRC_IN,
+	BLIT_OP_DST_IN, BLIT_OP_IN_REV = BLIT_OP_DST_IN,
+	BLIT_OP_SRC_OUT,
+	BLIT_OP_DST_OUT, BLIT_OP_OUT_REV = BLIT_OP_DST_OUT,
+	BLIT_OP_SRC_ATOP,
+	BLIT_OP_DST_ATOP, BLIT_OP_ATOP_REV = BLIT_OP_DST_ATOP,
+	BLIT_OP_XOR,
+
+	BLIT_OP_ADD,
+	BLIT_OP_MULTIPLY,
+	BLIT_OP_SCREEN,
+	BLIT_OP_DARKEN,
+	BLIT_OP_LIGHTEN,
+
+	BLIT_OP_DISJ_SRC_OVER,
+	BLIT_OP_DISJ_DST_OVER, BLIT_OP_SATURATE = BLIT_OP_DISJ_DST_OVER,
+	BLIT_OP_DISJ_SRC_IN,
+	BLIT_OP_DISJ_DST_IN, BLIT_OP_DISJ_IN_REV = BLIT_OP_DISJ_DST_IN,
+	BLIT_OP_DISJ_SRC_OUT,
+	BLIT_OP_DISJ_DST_OUT, BLIT_OP_DISJ_OUT_REV = BLIT_OP_DISJ_DST_OUT,
+	BLIT_OP_DISJ_SRC_ATOP,
+	BLIT_OP_DISJ_DST_ATOP, BLIT_OP_DISJ_ATOP_REV = BLIT_OP_DISJ_DST_ATOP,
+	BLIT_OP_DISJ_XOR,
+
+	BLIT_OP_CONJ_SRC_OVER,
+	BLIT_OP_CONJ_DST_OVER, BLIT_OP_CONJ_OVER_REV = BLIT_OP_CONJ_DST_OVER,
+	BLIT_OP_CONJ_SRC_IN,
+	BLIT_OP_CONJ_DST_IN, BLIT_OP_CONJ_IN_REV = BLIT_OP_CONJ_DST_IN,
+	BLIT_OP_CONJ_SRC_OUT,
+	BLIT_OP_CONJ_DST_OUT, BLIT_OP_CONJ_OUT_REV = BLIT_OP_CONJ_DST_OUT,
+	BLIT_OP_CONJ_SRC_ATOP,
+	BLIT_OP_CONJ_DST_ATOP, BLIT_OP_CONJ_ATOP_REV = BLIT_OP_CONJ_DST_ATOP,
+	BLIT_OP_CONJ_XOR,
+
+	/* user select coefficient manually */
+	BLIT_OP_USER_COEFF,
+
+	BLIT_OP_USER_SRC_GA,
+
+	/* Add new operation type here */
+
+	/* end of blit operation */
+	BLIT_OP_END,
+};
+#define MAX_FIMG2D_BLIT_OP ((int)BLIT_OP_END)
+
+#define V4L2_CID_S5P_G2D_BASE	(V4L2_CTRL_CLASS_USER | 0x1000)
+#define S5P_G2D_SOLID_FILL	(V4L2_CID_S5P_G2D_BASE + 0)
+#define S5P_G2D_MASK		(V4L2_CID_S5P_G2D_BASE + 1)
+#define S5P_G2D_SCALE		(V4L2_CID_S5P_G2D_BASE + 2)
+#define S5P_G2D_DITHER		(V4L2_CID_S5P_G2D_BASE + 3)
+#define S5P_G2D_BLUESCREEN	(V4L2_CID_S5P_G2D_BASE + 4)
+#define S5P_G2D_PORTER_DUFF	(V4L2_CID_S5P_G2D_BASE + 5)
 
 void g2d_reset(struct g2d_dev *d);
 void g2d_set_src_size(struct g2d_dev *d, struct g2d_frame *f);
 void g2d_set_src_addr(struct g2d_dev *d, dma_addr_t a);
 void g2d_set_dst_size(struct g2d_dev *d, struct g2d_frame *f);
 void g2d_set_dst_addr(struct g2d_dev *d, dma_addr_t a);
+void g2d_set_mask_size(struct g2d_dev *d, struct g2d_frame *f);
+void g2d_set_mask_addr(struct g2d_dev *d, dma_addr_t a);
+void g2d_set_src_scaling(struct g2d_dev *d, struct g2d_frame *in,
+						struct g2d_frame *out);
 void g2d_start(struct g2d_dev *d);
 void g2d_clear_int(struct g2d_dev *d);
 void g2d_set_rop4(struct g2d_dev *d, u32 r);
 void g2d_set_flip(struct g2d_dev *d, u32 r);
+void g2d_set_rotation(struct g2d_dev *d, u32 r);
+void g2d_set_color_fill(struct g2d_dev *d, u32 r);
+void g2d_set_alpha(struct g2d_dev *d, u32 r);
+void g2d_set_mask(struct g2d_dev *d, u32 r);
 u32 g2d_cmd_stretch(u32 e);
 void g2d_set_cmd(struct g2d_dev *d, u32 c);
 
-
+void g2d_set_clip_size(struct g2d_dev *d, struct g2d_frame *f);
+void g2d_set_bluescreen(struct g2d_dev *d, struct bs_info *b);
+void g2d_set_alpha_composite(struct g2d_dev *d,
+		enum blit_op op, unsigned char g_alpha);

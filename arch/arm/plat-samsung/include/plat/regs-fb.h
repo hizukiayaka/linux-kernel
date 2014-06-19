@@ -115,6 +115,11 @@
 #define VIDCON2_ORGYCbCr			(1 << 8)
 #define VIDCON2_YUVORDCrCb			(1 << 7)
 
+#define VIDCON2_RGB_ORDER_E_MASK	(0x7 << 19)
+#define VIDCON2_RGB_ORDER_E_BGR         (0x4 << 19)
+#define VIDCON2_RGB_ORDER_O_MASK        (0x7 << 16)
+#define VIDCON2_RGB_ORDER_O_BGR         (0x4 << 16)
+
 /* PRTCON (S3C6410, S5PC100)
  * Might not be present in the S3C6410 documentation,
  * but tests prove it's there almost for sure; shouldn't hurt in any case.
@@ -224,6 +229,7 @@
 #define WINCON1_BPPMODE_24BPP_A1887		(0xc << 2)
 #define WINCON1_BPPMODE_25BPP_A1888		(0xd << 2)
 #define WINCON1_BPPMODE_28BPP_A4888		(0xd << 2)
+#define WINCON1_BPPMODE_16BPP_A4444             (0xe << 2)
 
 /* S5PV210 */
 #define SHADOWCON				(0x34)
@@ -298,6 +304,10 @@
 #define VIDW_BUF_SIZE_PAGEWIDTH_SHIFT		(0)
 #define VIDW_BUF_SIZE_PAGEWIDTH_LIMIT		(0x1fff)
 #define VIDW_BUF_SIZE_PAGEWIDTH(_x)		(((_x) & 0x1fff) << 0)
+
+#define SHD_VIDW_BUF_START(_buff)               (0x40A0 + ((_buff) * 8))
+#define SHD_VIDW_BUF_END(_buff)                 (0x40D0 + ((_buff) * 8))
+#define SHD_VIDW_BUF_SIZE(_buff)                (0x4100 + ((_buff) * 8))
 
 /* Interrupt controls and status */
 
@@ -394,10 +404,51 @@
 #define WPALCON_W0PAL_18BPP			(0x4 << 0)
 #define WPALCON_W0PAL_16BPP_A555		(0x5 << 0)
 #define WPALCON_W0PAL_16BPP_565			(0x6 << 0)
-
+/* Blending equation */
+#define BLENDEQ(_x)                             (0x240 + (_x) * 4)
+#define BLENDEQ_COEF_ZERO                       0x0
+#define BLENDEQ_COEF_ONE                        0x1
+#define BLENDEQ_COEF_ALPHA_A                    0x2
+#define BLENDEQ_COEF_ONE_MINUS_ALPHA_A          0x3
+#define BLENDEQ_COEF_ALPHA_B                    0x4
+#define BLENDEQ_COEF_ONE_MINUS_ALPHA_B          0x5
+#define BLENDEQ_COEF_ALPHA0                     0x6
+#define BLENDEQ_COEF_A                          0xA
+#define BLENDEQ_COEF_ONE_MINUS_A                0xB
+#define BLENDEQ_COEF_B                          0xC
+#define BLENDEQ_COEF_ONE_MINUS_B                0xD
+#define BLENDEQ_Q_FUNC(_x)                      ((_x) << 18)
+#define BLENDEQ_Q_FUNC_MASK                     BLENDEQ_Q_FUNC(0xF)
+#define BLENDEQ_P_FUNC(_x)                      ((_x) << 12)
+#define BLENDEQ_P_FUNC_MASK                     BLENDEQ_P_FUNC(0xF)
+#define BLENDEQ_B_FUNC(_x)                      ((_x) << 6)
+#define BLENDEQ_B_FUNC_MASK                     BLENDEQ_B_FUNC(0xF)
+#define BLENDEQ_A_FUNC(_x)                      ((_x) << 0)
+#define BLENDEQ_A_FUNC_MASK                     BLENDEQ_A_FUNC(0xF)
 /* Blending equation control */
 #define BLENDCON				(0x260)
 #define BLENDCON_NEW_MASK			(1 << 0)
 #define BLENDCON_NEW_8BIT_ALPHA_VALUE		(1 << 0)
 #define BLENDCON_NEW_4BIT_ALPHA_VALUE		(0 << 0)
 
+/* alpha when !win->variant.has_osd_alpha */
+#define VIDWxALPHAx_R(_x)                       (((_x) & 0xFF) << 16)
+#define VIDWxALPHAx_G(_x)                       (((_x) & 0xFF) << 8)
+#define VIDWxALPHAx_B(_x)                       (((_x) & 0xFF) << 0)
+
+
+/* alpha when win->variant.has_osd_alpha */
+#define VIDOSDxC_ALPHA0_R_H(_x)                 (((_x) & 0xF0) << 16)
+#define VIDOSDxC_ALPHA0_G_H(_x)                 (((_x) & 0xF0) << 12)
+#define VIDOSDxC_ALPHA0_B_H(_x)                 (((_x) & 0xF0) << 8)
+#define VIDOSDxC_ALPHA1_R_H(_x)                 (((_x) & 0xF0) << 4)
+#define VIDOSDxC_ALPHA1_G_H(_x)                 (((_x) & 0xF0) << 0)
+#define VIDOSDxC_ALPHA1_B_H(_x)                 (((_x) & 0xF0) >> 4)
+#define VIDWxALPHAx_R_L(_x)                     (((_x) & 0x0F) << 16)
+#define VIDWxALPHAx_G_L(_x)                     (((_x) & 0x0F) << 8)
+#define VIDWxALPHAx_B_L(_x)                     (((_x) & 0x0F) << 0)
+
+
+/* Window alpha control */      
+#define VIDW_ALPHA0(_x)                         (0x21C + ((_x) * 8))
+#define VIDW_ALPHA1(_x)                         (0x220 + ((_x) * 8))

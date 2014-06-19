@@ -8,6 +8,7 @@ snd-soc-s3c-i2s-v2-objs := s3c-i2s-v2.o
 snd-soc-samsung-spdif-objs := spdif.o
 snd-soc-pcm-objs := pcm.o
 snd-soc-i2s-objs := i2s.o
+snd-soc-audss-objs := audss.o
 
 obj-$(CONFIG_SND_SOC_SAMSUNG) += snd-soc-s3c24xx.o
 obj-$(CONFIG_SND_S3C24XX_I2S) += snd-soc-s3c24xx-i2s.o
@@ -17,6 +18,7 @@ obj-$(CONFIG_SND_S3C_I2SV2_SOC) += snd-soc-s3c-i2s-v2.o
 obj-$(CONFIG_SND_SAMSUNG_SPDIF) += snd-soc-samsung-spdif.o
 obj-$(CONFIG_SND_SAMSUNG_PCM) += snd-soc-pcm.o
 obj-$(CONFIG_SND_SAMSUNG_I2S) += snd-soc-i2s.o
+obj-$(CONFIG_SND_SAMSUNG_I2S) += snd-soc-audss.o
 obj-$(CONFIG_SND_SAMSUNG_I2S) += snd-soc-idma.o
 
 # S3C24XX Machine Support
@@ -65,3 +67,26 @@ obj-$(CONFIG_SND_SOC_SPEYSIDE) += snd-soc-speyside.o
 obj-$(CONFIG_SND_SOC_TOBERMORY) += snd-soc-tobermory.o
 obj-$(CONFIG_SND_SOC_LOWLAND) += snd-soc-lowland.o
 obj-$(CONFIG_SND_SOC_LITTLEMILL) += snd-soc-littlemill.o
+
+obj-$(CONFIG_SND_SAMSUNG_ALP)   += srp_alp/
+
+# FriendlyARM Support
+snd-soc-wm8960-objs := wm8960.o
+snd-soc-tiny4412-wm8960-objs := tiny4412_wm8960.o
+
+ifneq ($(wildcard sound/soc/samsung/wm8960.c),)
+ifeq ($(FA),1)
+obj-$(CONFIG_SND_SOC_WM8960_TINY4412) += snd-soc-wm8960.o
+else
+obj-m += snd-soc-wm8960.o
+endif  #FA
+endif
+
+ifneq ($(wildcard sound/soc/samsung/tiny4412_wm8960.c),)
+ifeq ($(FA),1)
+obj-$(CONFIG_SND_SOC_SAMSUNG_TINY4412_WM8960) += snd-soc-tiny4412-wm8960.o
+else
+obj-m += snd-soc-tiny4412-wm8960.o
+endif  #FA
+endif
+

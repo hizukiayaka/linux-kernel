@@ -20,7 +20,8 @@
 #include <sound/pcm_params.h>
 
 #include <plat/audio.h>
-#include <plat/dma.h>
+#include <plat/dma-pl330.h>
+#include <plat/clock.h>
 
 #include "dma.h"
 #include "pcm.h"
@@ -130,6 +131,9 @@ struct s3c_pcm_info {
 
 	struct s3c_dma_params	*dma_playback;
 	struct s3c_dma_params	*dma_capture;
+	
+	bool   tx_active;
+	bool   rx_active;
 };
 
 static struct s3c2410_dma_client s3c_pcm_dma_client_out = {
@@ -193,6 +197,7 @@ static void s3c_pcm_snd_txctrl(struct s3c_pcm_info *pcm, int on)
 
 	writel(clkctl, regs + S3C_PCM_CLKCTL);
 	writel(ctl, regs + S3C_PCM_CTL);
+
 }
 
 static void s3c_pcm_snd_rxctrl(struct s3c_pcm_info *pcm, int on)
@@ -278,7 +283,7 @@ static int s3c_pcm_hw_params(struct snd_pcm_substream *substream,
 	struct s3c_dma_params *dma_data;
 	void __iomem *regs = pcm->regs;
 	struct clk *clk;
-	int sclk_div, sync_div;
+	int sclk_div, sync_div , sclk_bits;
 	unsigned long flags;
 	u32 clkctl;
 
@@ -289,11 +294,35 @@ static int s3c_pcm_hw_params(struct snd_pcm_substream *substream,
 	else
 		dma_data = pcm->dma_capture;
 
+	switch (params_channels(params)) {
+	case 2:
+		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
+			pcm->dma_playback->dma_size = 4;
+		else
+			pcm->dma_capture->dma_size = 4;
+		break;
+
+	case 1:
+		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
+			pcm->dma_playback->dma_size = 2;
+		else
+			pcm->dma_capture->dma_size = 2;
+
+		break;
+	default:
+		break;
+	}
+
 	snd_soc_dai_set_dma_data(rtd->cpu_dai, substream, dma_data);
 
 	/* Strictly check for sample size */
 	switch (params_format(params)) {
 	case SNDRV_PCM_FORMAT_S16_LE:
+		sclk_bits = 16;
+		if(params_channels(params) == 2)
+			sclk_bits *= 2;
+		else
+			sclk_bits *= 1;
 		break;
 	default:
 		return -EINVAL;
@@ -308,14 +337,8 @@ static int s3c_pcm_hw_params(struct snd_pcm_substream *substream,
 	else
 		clk = pcm->cclk;
 
-	/* Set the SCLK divider */
-	sclk_div = clk_get_rate(clk) / pcm->sclk_per_fs /
-					params_rate(params) / 2 - 1;
-
-	clkctl &= ~(S3C_PCM_CLKCTL_SCLKDIV_MASK
-			<< S3C_PCM_CLKCTL_SCLKDIV_SHIFT);
-	clkctl |= ((sclk_div & S3C_PCM_CLKCTL_SCLKDIV_MASK)
-			<< S3C_PCM_CLKCTL_SCLKDIV_SHIFT);
+	/* No need to set the SCLK divider ,as SCLK divider
+	   does not exist in Exynos4x12 */
 
 	/* Set the SYNC divider */
 	sync_div = pcm->sclk_per_fs - 1;
@@ -453,12 +476,51 @@ static int s3c_pcm_set_sysclk(struct snd_soc_dai *cpu_dai,
 	return 0;
 }
 
+static int s3c_pcm_startup(struct snd_pcm_substream *substream,
+				struct snd_soc_dai *dai)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct s3c_pcm_info *pcm = snd_soc_dai_get_drvdata(rtd->cpu_dai);
+
+	if (!pcm->tx_active && !pcm->rx_active) {
+	clk_enable(pcm->cclk);
+	clk_enable(pcm->pclk);
+	}
+
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
+		pcm->tx_active = true;
+	else
+		pcm->rx_active = true;
+
+	return 0;
+}
+
+static void s3c_pcm_shutdown(struct snd_pcm_substream *substream,
+				struct snd_soc_dai *dai)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct s3c_pcm_info *pcm = snd_soc_dai_get_drvdata(rtd->cpu_dai);
+
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
+		pcm->tx_active = false;
+	else
+		pcm->rx_active = false;
+
+	if (!pcm->tx_active && !pcm->rx_active ) {
+	clk_disable(pcm->pclk);
+	clk_disable(pcm->cclk);
+	}
+
+}
+
 static const struct snd_soc_dai_ops s3c_pcm_dai_ops = {
 	.set_sysclk	= s3c_pcm_set_sysclk,
 	.set_clkdiv	= s3c_pcm_set_clkdiv,
 	.trigger	= s3c_pcm_trigger,
 	.hw_params	= s3c_pcm_hw_params,
 	.set_fmt	= s3c_pcm_set_fmt,
+	.startup 	= s3c_pcm_startup,
+	.shutdown 	= s3c_pcm_shutdown,
 };
 
 #define S3C_PCM_RATES  SNDRV_PCM_RATE_8000_96000
@@ -473,7 +535,7 @@ static const struct snd_soc_dai_ops s3c_pcm_dai_ops = {
 		.formats	= SNDRV_PCM_FMTBIT_S16_LE,	\
 	},							\
 	.capture = {						\
-		.channels_min	= 2,				\
+		.channels_min	= 1,				\
 		.channels_max	= 2,				\
 		.rates		= S3C_PCM_RATES,		\
 		.formats	= SNDRV_PCM_FMTBIT_S16_LE,	\
@@ -495,6 +557,10 @@ static __devinit int s3c_pcm_dev_probe(struct platform_device *pdev)
 	struct s3c_pcm_info *pcm;
 	struct resource *mem_res, *dmatx_res, *dmarx_res;
 	struct s3c_audio_pdata *pcm_pdata;
+	struct clk *clk;
+#ifdef CONFIG_SND_SAMSUNG_PCM_USE_EPLL
+	struct clk *fout_epll, *mout_epll;
+#endif
 	int ret;
 
 	/* Check for valid device index */
@@ -543,7 +609,23 @@ static __devinit int s3c_pcm_dev_probe(struct platform_device *pdev)
 		ret = PTR_ERR(pcm->cclk);
 		goto err1;
 	}
-	clk_enable(pcm->cclk);
+
+	clk = clk_get(&pdev->dev, "audiocdclk");
+	if (IS_ERR(clk)) {
+		dev_err(&pdev->dev, "failed to get audiocdclk\n");
+		ret = PTR_ERR(clk);
+		goto err2;
+	}
+#if defined(CONFIG_SND_SAMSUNG_PCM) && !defined(CONFIG_SND_SAMSUNG_PCM_USE_EPLL)
+	clk_set_parent(pcm->cclk,clk);
+#endif
+
+	pcm->pclk = clk_get(&pdev->dev, "pcm");
+	if (IS_ERR(pcm->pclk)) {
+		dev_err(&pdev->dev, "failed to get pcm clk\n");
+		ret = PTR_ERR(pcm->pclk);
+		goto err3;
+	}
 
 	/* record our pcm structure for later use in the callbacks */
 	dev_set_drvdata(&pdev->dev, pcm);
@@ -552,23 +634,15 @@ static __devinit int s3c_pcm_dev_probe(struct platform_device *pdev)
 				resource_size(mem_res), "samsung-pcm")) {
 		dev_err(&pdev->dev, "Unable to request register region\n");
 		ret = -EBUSY;
-		goto err2;
+		goto err4;
 	}
 
 	pcm->regs = ioremap(mem_res->start, 0x100);
 	if (pcm->regs == NULL) {
 		dev_err(&pdev->dev, "cannot ioremap registers\n");
 		ret = -ENXIO;
-		goto err3;
+		goto err5;
 	}
-
-	pcm->pclk = clk_get(&pdev->dev, "pcm");
-	if (IS_ERR(pcm->pclk)) {
-		dev_err(&pdev->dev, "failed to get pcm_clock\n");
-		ret = -ENOENT;
-		goto err4;
-	}
-	clk_enable(pcm->pclk);
 
 	s3c_pcm_stereo_in[pdev->id].dma_addr = mem_res->start
 							+ S3C_PCM_RXFIFO;
@@ -586,18 +660,56 @@ static __devinit int s3c_pcm_dev_probe(struct platform_device *pdev)
 	ret = snd_soc_register_dai(&pdev->dev, &s3c_pcm_dai[pdev->id]);
 	if (ret != 0) {
 		dev_err(&pdev->dev, "failed to get register DAI: %d\n", ret);
-		goto err5;
+		goto err6;
+	}
+#ifdef CONFIG_SND_SAMSUNG_PCM_USE_EPLL
+
+	mout_epll = clk_get(NULL, "mout_epll");
+	if (IS_ERR(mout_epll)) {
+		pr_err("%s: failed to get mout_epll clk\n", __func__);
+		ret = PTR_ERR(mout_epll);
+		goto err7;
 	}
 
+	fout_epll = clk_get(NULL, "fout_epll");
+	if (IS_ERR(fout_epll)) {
+		pr_err("%s: failed to get fout_epll clk\n", __func__);
+		ret = PTR_ERR(fout_epll);
+		goto err8;
+	}
+
+	if (clk_set_parent(mout_epll, fout_epll)) {
+		pr_err("Failed to set %s as parent of %s \n",
+					fout_epll->name, mout_epll->name);
+		goto err9;
+	}
+
+	if (clk_set_parent(pcm->cclk, mout_epll)) {
+		pr_err("Failed to set %s as parent of %s \n",
+					mout_epll->name, pcm->cclk->name);
+		goto err9;
+	}
+
+#endif
 	return 0;
 
+#ifdef CONFIG_SND_SAMSUNG_PCM_USE_EPLL
+err9:
+	clk_put(fout_epll);
+err8:
+	clk_put(mout_epll);
+err7:
+	snd_soc_unregister_dai(&pdev->dev);
+#endif
+err6:
+	iounmap(pcm->regs);
 err5:
+	release_mem_region(mem_res->start, resource_size(mem_res));
+err4:
 	clk_disable(pcm->pclk);
 	clk_put(pcm->pclk);
-err4:
-	iounmap(pcm->regs);
 err3:
-	release_mem_region(mem_res->start, resource_size(mem_res));
+	clk_put(clk);
 err2:
 	clk_disable(pcm->cclk);
 	clk_put(pcm->cclk);

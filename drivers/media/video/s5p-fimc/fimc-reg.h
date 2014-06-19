@@ -13,6 +13,8 @@
 
 #include "fimc-core.h"
 
+#define SYSREG_CAMERA_BLK                       (S3C_VA_SYS + 0x0218)
+#define SYSREG_ISP_BLK                          (S3C_VA_SYS + 0x020c)
 /* Input source format */
 #define FIMC_REG_CISRCFMT			0x00
 #define FIMC_REG_CISRCFMT_ITU601_8BIT		(1 << 31)
@@ -50,8 +52,12 @@
 #define FIMC_REG_CIGCTRL_HREF_MASK		(1 << 21)
 #define FIMC_REG_CIGCTRL_IRQ_LEVEL		(1 << 20)
 #define FIMC_REG_CIGCTRL_IRQ_CLR		(1 << 19)
+#define FIMC_REG_CIGCTRL_IRQ_END_DISABLE	(1 << 18)
 #define FIMC_REG_CIGCTRL_IRQ_ENABLE		(1 << 16)
 #define FIMC_REG_CIGCTRL_SHDW_DISABLE		(1 << 12)
+#define S5P_CIGCTRL_SELWRITEBACK_A     		(1 << 10)
+#define S5P_CIGCTRL_SELWRITEBACK_B      	(0 << 10)
+
 #define FIMC_REG_CIGCTRL_CAM_JPEG		(1 << 8)
 #define FIMC_REG_CIGCTRL_SELCAM_MIPI_A		(1 << 7)
 #define FIMC_REG_CIGCTRL_CAMIF_SELWB		(1 << 6)
@@ -299,6 +305,7 @@ void fimc_hw_set_output_addr(struct fimc_dev *fimc, struct fimc_addr *paddr,
 int fimc_hw_set_camera_source(struct fimc_dev *fimc,
 			      struct s5p_fimc_isp_info *cam);
 void fimc_hw_set_camera_offset(struct fimc_dev *fimc, struct fimc_frame *f);
+int fimc_hwset_sysreg_camblk_isp_wb(struct fimc_dev *fimc);
 int fimc_hw_set_camera_polarity(struct fimc_dev *fimc,
 				struct s5p_fimc_isp_info *cam);
 int fimc_hw_set_camera_type(struct fimc_dev *fimc,
@@ -310,6 +317,8 @@ void fimc_hw_dis_capture(struct fimc_dev *dev);
 u32 fimc_hw_get_frame_index(struct fimc_dev *dev);
 void fimc_activate_capture(struct fimc_ctx *ctx);
 void fimc_deactivate_capture(struct fimc_dev *fimc);
+void fimc_hwset_enable_frame_end_irq(struct fimc_dev *fimc);
+void fimc_hwset_disable_frame_end_irq(struct fimc_dev *fimc);
 
 /**
  * fimc_hw_set_dma_seq - configure output DMA buffer sequence

@@ -313,8 +313,23 @@ config SPI_S3C64XX
 	tristate "Samsung S3C64XX series type SPI"
 	depends on (ARCH_S3C24XX || ARCH_S3C64XX || ARCH_S5P64X0 || ARCH_EXYNOS)
 	select S3C64XX_DMA if ARCH_S3C64XX
+	select EXYNOS_SETUP_SPI
 	help
 	  SPI driver for Samsung S3C64XX and newer SoCs.
+
+config S3C64XX_DEV_SPI0
+	boolean "Samsung S3C64XX Channel 0 Support."
+	depends on SPI_S3C64XX && !VIDEO_M5MOLS
+	default y
+	help
+	  Enables SPI Channel 0.
+
+config S3C64XX_DEV_SPI2
+	boolean "Samsung S3C64XX Channel 2 Support."
+	depends on SPI_S3C64XX
+	default y
+	help
+	  Enables SPI Channel 2.
 
 config SPI_SH_MSIOF
 	tristate "SuperH MSIOF SPI controller"

@@ -314,15 +314,15 @@ config SENSORS_DS1621
 	  This driver can also be built as a module.  If so, the module
 	  will be called ds1621.
 
-config SENSORS_EXYNOS4_TMU
-	tristate "Temperature sensor on Samsung EXYNOS4"
-	depends on ARCH_EXYNOS4
+config SENSORS_DA9052_ADC
+	tristate "Dialog DA9052/DA9053 ADC"
+	depends on PMIC_DA9052
 	help
-	  If you say yes here you get support for TMU (Thermal Management
-	  Unit) on SAMSUNG EXYNOS4 series of SoC.
+	  Say y here to support the ADC found on Dialog Semiconductor
+	  DA9052-BC and DA9053-AA/Bx PMICs.
 
-	  This driver can also be built as a module. If so, the module
-	  will be called exynos4-tmu.
+	  This driver can also be built as module. If so, the module
+	  will be called da9052-hwmon.
 
 config SENSORS_I5K_AMB
 	tristate "FB-DIMM AMB temperature sensor on Intel 5000 series chipsets"
@@ -1386,10 +1386,25 @@ config SENSORS_APPLESMC
 	  the awesome power of applesmc.
 
 config SENSORS_MC13783_ADC
-        tristate "Freescale MC13783/MC13892 ADC"
-        depends on MFD_MC13XXX
-        help
-          Support for the A/D converter on MC13783 and MC13892 PMIC.
+	tristate "Freescale MC13783/MC13892 ADC"
+	depends on MFD_MC13XXX
+	help
+	  Support for the A/D converter on MC13783 and MC13892 PMIC.
+
+config SENSORS_MMA7660
+	tristate "Freescale MMA7660 Accelerometer"
+	depends on I2C && MACH_TINY4412
+	default n
+	help
+	  This driver provides Support for the 3-Axis Orientation/Motion
+	  Detection Sensor - MMA7660 of Freescale Semiconductor.
+
+config MXC_MMA845X
+	tristate "Freescale MMA845X Accelerometer sensor"
+	depends on I2C && SYSFS
+	default n
+	help
+	  Support for MMA8451/MMA8452/MMA8453 Freescale sensor parts.
 
 if ACPI
 

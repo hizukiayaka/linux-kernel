@@ -26,7 +26,6 @@
 #include <asm/irq.h>
 
 #include <mach/regs-power.h>
-#include <mach/regs-gpioj.h>
 #include <mach/regs-gpio.h>
 #include <mach/regs-dsc.h>
 
@@ -49,7 +48,8 @@ static int s3c2412_cpu_suspend(unsigned long arg)
 
 	s3c2412_sleep_enter();
 
-	panic("sleep resumed to originator?");
+	pr_info("Failed to suspend the system\n");
+	return 1; /* Aborting suspend */
 }
 
 static void s3c2412_pm_prepare(void)

@@ -22,12 +22,21 @@
  */
 #define S3C_FB_MAX_WIN	(5)
 
+/* IOCTL commands */
+#define S3CFB_WIN_POSITION              _IOW('F', 203, \
+						struct s3c_fb_user_window)
+
+#define S3CFB_WIN_SET_CHROMA            _IOW('F', 205, \
+						struct s3c_fb_user_chroma)
+
 /**
  * struct s3c_fb_pd_win - per window setup data
  * @xres     : The window X size.
  * @yres     : The window Y size.
  * @virtual_x: The virtual X size.
  * @virtual_y: The virtual Y size.
+ * @width    : The width of display in mm.
+ * @height   : The height of display in mm
  */
 struct s3c_fb_pd_win {
 	unsigned short		default_bpp;
@@ -36,6 +45,8 @@ struct s3c_fb_pd_win {
 	unsigned short		yres;
 	unsigned short		virtual_x;
 	unsigned short		virtual_y;
+	unsigned short		width;
+	unsigned short		height;
 };
 
 /**
@@ -43,7 +54,6 @@ struct s3c_fb_pd_win {
  * @setup_gpio: Setup the external GPIO pins to the right state to transfer
  *		the data from the display system to the connected display
  *		device.
- * @default_win: default window layer number to be used for UI layer.
  * @vidcon0: The base vidcon0 values to control the panel data format.
  * @vidcon1: The base vidcon1 values to control the panel data output.
  * @vtiming: Video timing when connected to a RGB type panel.

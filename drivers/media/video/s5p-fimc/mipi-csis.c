@@ -81,9 +81,9 @@ static char *csi_clock_name[] = {
 };
 #define NUM_CSIS_CLOCKS	ARRAY_SIZE(csi_clock_name)
 
-static const char * const csis_supply_name[] = {
-	"vdd11", /* 1.1V or 1.2V (s5pc100) MIPI CSI suppply */
-	"vdd18", /* VDD 1.8V and MIPI CSI PLL supply */
+static char *csis_supply_name[] = {
+	"vdd8_mipi", /* 1.0V (smdk4x12) MIPI CSI suppply */
+	"vdd10_mipi", /* VDD 1.8V and MIPI CSI PLL supply */
 };
 #define CSIS_NUM_SUPPLIES ARRAY_SIZE(csis_supply_name)
 
@@ -145,6 +145,10 @@ static const struct csis_pix_format s5pcsis_formats[] = {
 		.code = V4L2_MBUS_FMT_JPEG_1X8,
 		.fmt_reg = S5PCSIS_CFG_FMT_USER(1),
 		.data_alignment = 32,
+	}, {
+		.code = V4L2_MBUS_FMT_SGRBG10_1X10,
+		.fmt_reg = S5PCSIS_CFG_FMT_RAW10,
+		.data_alignment = 24,
 	},
 };
 
@@ -296,7 +300,6 @@ static int s5pcsis_s_power(struct v4l2_subdev *sd, int on)
 {
 	struct csis_state *state = sd_to_csis_state(sd);
 	struct device *dev = &state->pdev->dev;
-
 	if (on)
 		return pm_runtime_get_sync(dev);
 
@@ -529,8 +532,10 @@ static int __devinit s5pcsis_probe(struct platform_device *pdev)
 		return state->irq;
 	}
 
-	for (i = 0; i < CSIS_NUM_SUPPLIES; i++)
+	for (i = 0; i < CSIS_NUM_SUPPLIES; i++) {
 		state->supplies[i].supply = csis_supply_name[i];
+		state->supplies[i].consumer = NULL;
+	}
 
 	ret = regulator_bulk_get(&pdev->dev, CSIS_NUM_SUPPLIES,
 				 state->supplies);

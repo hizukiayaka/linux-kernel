@@ -38,6 +38,18 @@
 #define MXR_ENABLE 1
 #define MXR_DISABLE 0
 
+ /**For changing a range of bits in a number
+   where y is the number to be changed and x 
+   is the number to be written in y starting 
+   from s till length l */
+
+#define BIT_MASKS(len)           ( BIT(len)-1 )
+#define BF_MASK(start, len)     ( BIT_MASKS(len)<<(start) )
+#define BF_PREP(x, start, len)  ( ((x)&BIT_MASKS(len)) << (start) )
+#define BF_SET(y, x, start, len)    \
+    ( y= ((y) &~ BF_MASK(start, len)) | BF_PREP(x, start, len) )
+
+
 /** description of a macroblock for packed formats */
 struct mxr_block {
 	/** vertical number of pixels in macroblock */
@@ -115,6 +127,7 @@ struct mxr_buffer {
 	struct vb2_buffer	vb;
 	/** node for layer's lists */
 	struct list_head	list;
+	struct list_head	wait;
 };
 
 
@@ -146,6 +159,13 @@ struct mxr_layer_ops {
 	/** adjusting geometry */
 	void (*fix_geometry)(struct mxr_layer *,
 		enum mxr_geometry_stage, unsigned long);
+        void (*chromakey_enable)(struct mxr_layer *,u32);
+        void (*chromakey_value)(struct mxr_layer *,u32);
+	void (*change_priority)(struct mxr_layer *,u32);   
+        void (*layer_blend_enable)(struct mxr_layer *,u32);
+        void (*layer_blend_alpha)(struct mxr_layer *,u32);
+        void (*pixel_blend_enable)(struct mxr_layer *,u32);
+
 };
 
 /** layer instance, a single window and content displayed on output */
@@ -165,6 +185,10 @@ struct mxr_layer {
 	spinlock_t enq_slock;
 	/** list for enqueued buffers */
 	struct list_head enq_list;
+	/** list for buffers waiting on a fence */
+	struct list_head fence_wait_list;
+	struct workqueue_struct *fence_wq;
+	struct work_struct fence_work;
 	/** buffer currently owned by hardware in temporary registers */
 	struct mxr_buffer *update_buf;
 	/** buffer currently owned by hardware in shadow registers */
@@ -354,6 +378,16 @@ void mxr_reg_graph_buffer(struct mxr_device *mdev, int idx, dma_addr_t addr);
 void mxr_reg_graph_format(struct mxr_device *mdev, int idx,
 	const struct mxr_format *fmt, const struct mxr_geometry *geo);
 
+void mxr_reg_graph_chromakey_enable(struct mxr_device *mdev, int idx,u32 en);
+void mxr_reg_graph_chromakey_value(struct mxr_device *mdev, int idx,u32 en);
+void mxr_reg_graph_priority(struct mxr_device *mdev, int idx,u32 en);
+void mxr_reg_graph_layer_blend_enable(struct mxr_device *mdev , int idx, u32 en);
+void mxr_reg_graph_layer_blend_alpha(struct mxr_device *mdev , int idx, u32 en);
+void mxr_reg_graph_pixel_blend_enable(struct mxr_device *mdev , int idx, u32 en);
+
+void mxr_reg_vp_layer_blend_enable(struct mxr_device *mdev , int idx, u32 en);
+void mxr_reg_vp_layer_blend_alpha(struct mxr_device *mdev , int idx, u32 en);
+void mxr_reg_vp_priority(struct mxr_device *mdev, int idx,unsigned int en);
 void mxr_reg_vp_layer_stream(struct mxr_device *mdev, int en);
 void mxr_reg_vp_buffer(struct mxr_device *mdev,
 	dma_addr_t luma_addr[2], dma_addr_t chroma_addr[2]);
