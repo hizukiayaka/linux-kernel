@@ -1051,6 +1051,11 @@ static int vidioc_reqbufs(struct file *file, void *priv,
 							ctx->capture_state);
 			return -EINVAL;
 		}
+		if (0 == reqbufs->count) {
+			mfc_debug(2, "Freeing buffers\n");
+			ret = vb2_reqbufs(&ctx->vq_dst, reqbufs);
+			return ret;
+		}
 		ret = vb2_reqbufs(&ctx->vq_dst, reqbufs);
 		if (ret != 0) {
 			mfc_err("error in vb2_reqbufs() for E(D)\n");
@@ -1070,6 +1075,12 @@ static int vidioc_reqbufs(struct file *file, void *priv,
 							ctx->output_state);
 			return -EINVAL;
 		}
+		if (0 == reqbufs->count) {
+			mfc_debug(2, "Freeing buffers\n");
+			ret = vb2_reqbufs(&ctx->vq_src, reqbufs);
+			return ret;
+		}
+
 		ret = vb2_reqbufs(&ctx->vq_src, reqbufs);
 		if (ret != 0) {
 			mfc_err("error in vb2_reqbufs() for E(S)\n");
