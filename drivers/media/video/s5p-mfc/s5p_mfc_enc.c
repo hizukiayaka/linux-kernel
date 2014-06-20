@@ -1046,15 +1046,16 @@ static int vidioc_reqbufs(struct file *file, void *priv,
 		(reqbufs->memory != V4L2_MEMORY_USERPTR))
 		return -EINVAL;
 	if (reqbufs->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
+		if (0 == reqbufs->count) {
+			mfc_debug(2, "Freeing buffers\n");
+			ret = vb2_reqbufs(&ctx->vq_dst, reqbufs);
+			ctx->capture_state = QUEUE_FREE;
+			return ret;
+		}
 		if (ctx->capture_state != QUEUE_FREE) {
 			mfc_err("invalid capture state: %d\n",
 							ctx->capture_state);
 			return -EINVAL;
-		}
-		if (0 == reqbufs->count) {
-			mfc_debug(2, "Freeing buffers\n");
-			ret = vb2_reqbufs(&ctx->vq_dst, reqbufs);
-			return ret;
 		}
 		ret = vb2_reqbufs(&ctx->vq_dst, reqbufs);
 		if (ret != 0) {
@@ -1070,15 +1071,18 @@ static int vidioc_reqbufs(struct file *file, void *priv,
 			return -ENOMEM;
 		}
 	} else if (reqbufs->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
+		if (0 == reqbufs->count) {
+			mfc_debug(2, "Freeing buffers\n");
+			ret = vb2_reqbufs(&ctx->vq_src, reqbufs);
+			s5p_mfc_hw_call(dev->mfc_ops, release_codec_buffers,
+					ctx);
+			ctx->output_state = QUEUE_FREE;
+			return ret;
+		}
 		if (ctx->output_state != QUEUE_FREE) {
 			mfc_err("invalid output state: %d\n",
 							ctx->output_state);
 			return -EINVAL;
-		}
-		if (0 == reqbufs->count) {
-			mfc_debug(2, "Freeing buffers\n");
-			ret = vb2_reqbufs(&ctx->vq_src, reqbufs);
-			return ret;
 		}
 
 		ret = vb2_reqbufs(&ctx->vq_src, reqbufs);
