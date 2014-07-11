@@ -142,6 +142,53 @@ struct flite_dev {
 	enum flite_output_entity	output;
 };
 
+static struct flite_fmt flite_formats[] = {
+	{
+		.name		= "YUV422 8-bit 1 plane(UYVY)",
+		.code		= V4L2_MBUS_FMT_UYVY8_2X8,
+		.fmt_reg	= FLITE_REG_CIGCTRL_YUV422_1P,
+		.is_yuv		= 1,
+	},{
+		.name		= "YUV422 8-bit 1 plane(VYUY)",
+		.code		= V4L2_MBUS_FMT_VYUY8_2X8,
+		.fmt_reg	= FLITE_REG_CIGCTRL_YUV422_1P,
+		.is_yuv		= 1,
+	},{
+		.name		= "YUV422 8-bit 1 plane(YUYV)",
+		.code		= V4L2_MBUS_FMT_YUYV8_2X8,
+		.fmt_reg	= FLITE_REG_CIGCTRL_YUV422_1P,
+		.is_yuv		= 1,
+	},{
+		.name		= "YUV422 8-bit 1 plane(YVYU)",
+		.code		= V4L2_MBUS_FMT_YVYU8_2X8,
+		.fmt_reg	= FLITE_REG_CIGCTRL_YUV422_1P,
+		.is_yuv		= 1,
+	},{
+		/* ISP supports only GRBG order in 4212 */
+		.name		= "RAW8(GRBG)",
+		.code		= V4L2_MBUS_FMT_SGRBG8_1X8,
+		.fmt_reg	= FLITE_REG_CIGCTRL_RAW8,
+		.is_yuv		= 0,
+	},{
+		/* ISP supports only GRBG order in 4212 */
+		.name		= "RAW10(GRBG)",
+		.code		= V4L2_MBUS_FMT_SGRBG10_1X10,
+		.fmt_reg	= FLITE_REG_CIGCTRL_RAW10,
+		.is_yuv		= 0,
+	},{
+		/* ISP supports only GRBG order in 4212 */
+		.name		= "RAW12(GRBG)",
+		.code		= V4L2_MBUS_FMT_SGRBG12_1X12,
+		.fmt_reg	= FLITE_REG_CIGCTRL_RAW12,
+		.is_yuv		= 0,
+	},{
+		.name		= "User Defined(JPEG)",
+		.code		= V4L2_MBUS_FMT_JPEG_1X8,
+		.fmt_reg	= FLITE_REG_CIGCTRL_USER(1),
+		.is_yuv		= 0,
+	},
+};
+
 /* inline function for performance-sensitive region */
 static inline void flite_hw_clear_irq(struct flite_dev *dev)
 {
@@ -156,8 +203,23 @@ static inline void flite_hw_get_int_src(struct flite_dev *dev, u32 *src)
 	*src &= FLITE_REG_CISTATUS_IRQ_MASK;
 }
 
-inline struct flite_fmt const *find_flite_format(struct
+static inline struct flite_fmt const *find_flite_format(struct
+		v4l2_mbus_framefmt *mf)
+{
+	int num_fmt = ARRAY_SIZE(flite_formats);
+
+	while (num_fmt--)
+		if (mf->code == flite_formats[num_fmt].code)
+			break;
+	if (num_fmt < 0)
+		return NULL;
+
+	return &flite_formats[num_fmt];
+}
+
+struct flite_fmt const *find_flite_format(struct
 		v4l2_mbus_framefmt *mf);
+
 /* fimc-reg.c */
 void flite_hw_set_cam_source_size(struct flite_dev *dev);
 void flite_hw_set_cam_channel(struct flite_dev *dev);

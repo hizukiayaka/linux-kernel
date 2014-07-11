@@ -26,70 +26,9 @@
 #define DEFAULT_FLITE_SINK_WIDTH	800
 #define DEFAULT_FLITE_SINK_HEIGHT	480
 
-static struct flite_fmt flite_formats[] = {
-	{
-		.name		= "YUV422 8-bit 1 plane(UYVY)",
-		.code		= V4L2_MBUS_FMT_UYVY8_2X8,
-		.fmt_reg	= FLITE_REG_CIGCTRL_YUV422_1P,
-		.is_yuv		= 1,
-	},{
-		.name		= "YUV422 8-bit 1 plane(VYUY)",
-		.code		= V4L2_MBUS_FMT_VYUY8_2X8,
-		.fmt_reg	= FLITE_REG_CIGCTRL_YUV422_1P,
-		.is_yuv		= 1,
-	},{
-		.name		= "YUV422 8-bit 1 plane(YUYV)",
-		.code		= V4L2_MBUS_FMT_YUYV8_2X8,
-		.fmt_reg	= FLITE_REG_CIGCTRL_YUV422_1P,
-		.is_yuv		= 1,
-	},{
-		.name		= "YUV422 8-bit 1 plane(YVYU)",
-		.code		= V4L2_MBUS_FMT_YVYU8_2X8,
-		.fmt_reg	= FLITE_REG_CIGCTRL_YUV422_1P,
-		.is_yuv		= 1,
-	},{
-		/* ISP supports only GRBG order in 4212 */
-		.name		= "RAW8(GRBG)",
-		.code		= V4L2_MBUS_FMT_SGRBG8_1X8,
-		.fmt_reg	= FLITE_REG_CIGCTRL_RAW8,
-		.is_yuv		= 0,
-	},{
-		/* ISP supports only GRBG order in 4212 */
-		.name		= "RAW10(GRBG)",
-		.code		= V4L2_MBUS_FMT_SGRBG10_1X10,
-		.fmt_reg	= FLITE_REG_CIGCTRL_RAW10,
-		.is_yuv		= 0,
-	},{
-		/* ISP supports only GRBG order in 4212 */
-		.name		= "RAW12(GRBG)",
-		.code		= V4L2_MBUS_FMT_SGRBG12_1X12,
-		.fmt_reg	= FLITE_REG_CIGCTRL_RAW12,
-		.is_yuv		= 0,
-	},{
-		.name		= "User Defined(JPEG)",
-		.code		= V4L2_MBUS_FMT_JPEG_1X8,
-		.fmt_reg	= FLITE_REG_CIGCTRL_USER(1),
-		.is_yuv		= 0,
-	},
-};
-
 static struct flite_dev *to_flite_dev(struct v4l2_subdev *sdev)
 {
 	return container_of(sdev, struct flite_dev, sd);
-}
-
-inline struct flite_fmt const *find_flite_format(struct
-		v4l2_mbus_framefmt *mf)
-{
-	int num_fmt = ARRAY_SIZE(flite_formats);
-
-	while (num_fmt--)
-		if (mf->code == flite_formats[num_fmt].code)
-			break;
-	if (num_fmt < 0)
-		return NULL;
-
-	return &flite_formats[num_fmt];
 }
 
 static int flite_s_mbus_fmt(struct v4l2_subdev *sd, struct v4l2_mbus_framefmt *mf)
@@ -306,6 +245,8 @@ static struct v4l2_mbus_framefmt *__flite_get_format(
 	else
 		return &flite->mbus_fmt;
 }
+
+
 
 static void flite_try_format(struct flite_dev *flite, struct v4l2_subdev_fh *fh,
 			     struct v4l2_mbus_framefmt *fmt,

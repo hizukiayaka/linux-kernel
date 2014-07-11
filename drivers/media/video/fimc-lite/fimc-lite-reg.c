@@ -198,7 +198,7 @@ void flite_hw_set_camera_type(struct flite_dev *dev, struct
 	u32 cfg = 0;
 	cfg = readl(dev->regs + FLITE_REG_CIGCTRL);
 
-	if (cam->type == CAM_TYPE_ITU)
+	if (cam->type == CAM_TYPE_ITU_2)
 		cfg &= ~FLITE_REG_CIGCTRL_SELCAM_MIPI;
 	else
 		cfg |= FLITE_REG_CIGCTRL_SELCAM_MIPI;
