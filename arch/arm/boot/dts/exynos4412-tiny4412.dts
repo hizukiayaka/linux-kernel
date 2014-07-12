@@ -63,6 +63,27 @@
 		status = "okay";
 	};
 
+	mmc@12550000 {
+		status = "okay";
+		num-slots = <1>;
+		supports-highspeed;
+		broken-cd;
+		non-removable;
+		card-detect-delay = <200>;
+		samsung,dw-mshc-sdr-timing = <1 1>;
+		samsung,dw-mshc-ddr-timing = <1 1>;
+
+		slot@0 {
+			reg = <0>;
+			bus-width = <8>;
+			gpios = <&gpk0 1 3 0 2>, <&gpk0 0 3 0 2>,
+				<&gpk1 3 4 3 2>, <&gpk1 4 4 3 2>,
+				<&gpk1 5 4 3 2>, <&gpk1 6 4 3 2>,
+				<&gpk0 3 3 3 2>, <&gpk0 4 3 3 2>,
+				<&gpk0 5 3 3 2>, <&gpk0 6 3 3 2>;
+		};
+	};
+
 	serial@13800000 {
 		status = "okay";
 	};
