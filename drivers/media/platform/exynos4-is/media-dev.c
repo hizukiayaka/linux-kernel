@@ -1378,7 +1378,7 @@ static int fimc_md_probe(struct platform_device *pdev)
 	}
 
 	ret = fimc_md_register_sensor_entities(fmd);
-	if (ret) {
+	if (ret < 0) {
 		mutex_unlock(&fmd->media_dev.graph_mutex);
 		goto err_m_ent;
 	}
