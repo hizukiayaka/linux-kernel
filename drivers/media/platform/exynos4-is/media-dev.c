@@ -1453,7 +1453,7 @@ static int fimc_md_probe(struct platform_device *pdev)
 		goto err_clk;
 
 	ret = fimc_md_register_sensor_entities(fmd);
-	if (ret)
+	if (ret < 0)
 		goto err_m_ent;
 
 	ret = device_create_file(&pdev->dev, &dev_attr_subdev_conf_mode);
