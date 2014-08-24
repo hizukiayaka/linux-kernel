@@ -99,10 +99,20 @@
 	};
 
 	serial@13820000 {
+		/* J4851 XEINT28 */
+		linux,rs485-enabled-at-boot-time;
+		rs485-rts-active-high;
+		rts-gpio = <&gpx3 4 1 1 3>;
+		rs485-rts-delay = <0 200>;
 		status = "okay";
 	};
 
 	serial@13830000 {
+		/* J4852 XEINT29 */
+		linux,rs485-enabled-at-boot-time;
+		rs485-rts-active-high;
+		rts-gpio = <&gpx3 5 1 1 3>;
+		rs485-rts-delay = <0 200>;
 		status = "okay";
 	};
 
