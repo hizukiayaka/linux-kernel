@@ -41,20 +41,28 @@
 			label = "led2";
 			gpios = <&gpm4 1 GPIO_ACTIVE_LOW>;
 			default-state = "off";
+			linux,default-trigger = "mmc1";
 		};
 
 		led3 {
 			label = "led3";
 			gpios = <&gpm4 2 GPIO_ACTIVE_LOW>;
 			default-state = "off";
+			linux,default-trigger = "mmc0";
 		};
 
 		led4 {
 			label = "led4";
 			gpios = <&gpm4 3 GPIO_ACTIVE_LOW>;
 			default-state = "off";
-			linux,default-trigger = "mmc0";
 		};
+
+		led5 {
+			label = "led5";
+			gpios = <&gpx3 3 GPIO_ACTIVE_LOW>;
+			default-state = "off";
+		};
+
 	};
 
 	fixed-rate-clocks {
