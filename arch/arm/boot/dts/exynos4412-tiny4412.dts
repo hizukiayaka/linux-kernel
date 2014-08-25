@@ -35,20 +35,19 @@
 		led2 {
 			label = "led2";
 			gpios = <&gpm4 1 1>;
+			linux,default-trigger = "mmc1";
 			default-state = "off";
 		};
 
 		led3 {
 			label = "led3";
 			gpios = <&gpm4 2 1>;
-			default-state = "off";
+			linux,default-trigger = "mmc0";
 		};
 
 		led4 {
 			label = "led4";
 			gpios = <&gpm4 3 1>;
-			default-state = "off";
-			linux,default-trigger = "mmc0";
 		};
 	};
 
