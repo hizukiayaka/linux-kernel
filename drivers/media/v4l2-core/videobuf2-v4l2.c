@@ -194,6 +194,7 @@ static int __fill_v4l2_buffer(struct vb2_buffer *vb, void *pb)
 	b->timestamp = vbuf->timestamp;
 	b->timecode = vbuf->timecode;
 	b->sequence = vbuf->sequence;
+	b->request = vbuf->request;
 	b->reserved2 = 0;
 	b->reserved = 0;
 
@@ -310,6 +311,7 @@ static int __fill_vb2_buffer(struct vb2_buffer *vb,
 	}
 	vbuf->timestamp.tv_sec = 0;
 	vbuf->timestamp.tv_usec = 0;
+	vbuf->request = b->request;
 	vbuf->sequence = 0;
 
 	if (V4L2_TYPE_IS_MULTIPLANAR(b->type)) {
