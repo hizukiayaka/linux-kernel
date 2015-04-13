@@ -2000,6 +2000,8 @@ static int v4l_query_ext_ctrl(const struct v4l2_ioctl_ops *ops,
 		return v4l2_query_ext_ctrl(vfh->ctrl_handler, p);
 	if (vfd->ctrl_handler)
 		return v4l2_query_ext_ctrl(vfd->ctrl_handler, p);
+	if (p->request)
+		return -EINVAL;
 	if (ops->vidioc_query_ext_ctrl)
 		return ops->vidioc_query_ext_ctrl(file, fh, p);
 	return -ENOTTY;
@@ -2100,6 +2102,8 @@ static int v4l_g_ext_ctrls(const struct v4l2_ioctl_ops *ops,
 		return v4l2_g_ext_ctrls(vfd->ctrl_handler, p);
 	if (ops->vidioc_g_ext_ctrls == NULL)
 		return -ENOTTY;
+	if (p->request)
+		return -EINVAL;
 	return check_ext_ctrls(p, 0) ? ops->vidioc_g_ext_ctrls(file, fh, p) :
 					-EINVAL;
 }
@@ -2119,6 +2123,8 @@ static int v4l_s_ext_ctrls(const struct v4l2_ioctl_ops *ops,
 		return v4l2_s_ext_ctrls(NULL, vfd->ctrl_handler, p);
 	if (ops->vidioc_s_ext_ctrls == NULL)
 		return -ENOTTY;
+	if (p->request)
+		return -EINVAL;
 	return check_ext_ctrls(p, 0) ? ops->vidioc_s_ext_ctrls(file, fh, p) :
 					-EINVAL;
 }
@@ -2138,6 +2144,8 @@ static int v4l_try_ext_ctrls(const struct v4l2_ioctl_ops *ops,
 		return v4l2_try_ext_ctrls(vfd->ctrl_handler, p);
 	if (ops->vidioc_try_ext_ctrls == NULL)
 		return -ENOTTY;
+	if (p->request)
+		return -EINVAL;
 	return check_ext_ctrls(p, 0) ? ops->vidioc_try_ext_ctrls(file, fh, p) :
 					-EINVAL;
 }
