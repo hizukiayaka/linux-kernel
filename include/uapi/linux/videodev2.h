@@ -1671,6 +1671,7 @@ struct v4l2_querymenu {
 #define V4L2_CTRL_FLAG_EXECUTE_ON_WRITE	0x0200
 #define V4L2_CTRL_FLAG_MODIFY_LAYOUT	0x0400
 #define V4L2_CTRL_FLAG_REQ_APPLIED	0x0800
+#define V4L2_CTRL_FLAG_REQ_KEEP		0x1000
 
 /*  Query flags, to be ORed with the control ID */
 #define V4L2_CTRL_FLAG_NEXT_CTRL	0x80000000
@@ -2304,6 +2305,9 @@ struct v4l2_create_buffers {
 #define V4L2_REQ_CMD_DELETE	(2)
 #define V4L2_REQ_CMD_APPLY	(3)
 #define V4L2_REQ_CMD_QUEUE	(4)
+
+/* Flag for V4L2_REQ_CMD_BEGIN */
+#define V4L2_REQ_CMD_BEGIN_FL_KEEP	(1 << 0)
 
 struct v4l2_request_cmd {
 	__u32 cmd;
