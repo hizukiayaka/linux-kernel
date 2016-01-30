@@ -35,7 +35,6 @@ ifeq ($(wildcard $(src)/linux/license/gpl/*),)
     ifeq ($(CONFIG_DMA_SHARED_BUFFER),y)
         $(error DMA-BUF is incompatible with non-GPL license)
     endif
-    $(error Linux Device integration is incompatible with non-GPL license)
 else
     ccflags-y += -I$(src)/linux/license/gpl
 endif
@@ -158,7 +157,7 @@ endif
 ccflags-y += -DSVN_REV_STRING=\"$(SVN_REV)\"
 
 VERSION_STRINGS :=
-VERSION_STRINGS += API_VERSION=$(shell cd $(src); grep "\#define _MALI_API_VERSION" $(FILES_PREFIX)include/linux/mali/mali_utgard_uk_types.h | cut -d' ' -f 3 )
+VERSION_STRINGS += API_VERSION=$(grep "\#define _MALI_API_VERSION" drivers/gpu/arm/mali/include/linux/mali/mali_utgard_uk_types.h | cut -d' ' -f 3 )
 VERSION_STRINGS += REPO_URL=$(shell $(SVN_INFO) | grep '^URL: ' | cut -d: -f2- | cut -b2-)
 VERSION_STRINGS += REVISION=$(SVN_REV)
 VERSION_STRINGS += CHANGED_REVISION=$(shell $(SVN_INFO) | grep '^Last Changed Rev: ' | cut -d: -f2- | cut -b2-)
