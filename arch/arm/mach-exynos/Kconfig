@@ -528,9 +528,6 @@ config MACH_TINY4412
 	select EXYNOS4_SETUP_USB_PHY
 	select EXYNOS4_SETUP_HDMI
 	select EXYNOS4_SETUP_FIMC
-	select WIRELESS_EXT
-	select WEXT_SPY
-	select WEXT_PRIV
 	select AVERAGE
 	help
 	  Machine support for FriendlyARM Tiny4412
