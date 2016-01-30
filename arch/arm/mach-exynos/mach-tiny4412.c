@@ -1,5 +1,5 @@
 /*
- * linux/arch/arm/mach-exynos4/mach-smdk4x12.c
+ * linux/arch/arm/mach-exynos4/mach-tiny4412.c
  *
  * Copyright (c) 2011 Samsung Electronics Co., Ltd.
  *		http://www.samsung.com
@@ -14,8 +14,6 @@
 #include <linux/input.h>
 #include <linux/io.h>
 #include <linux/lcd.h>
-#include <linux/mfd/max8997.h>
-#include <linux/mfd/max77686.h>
 #include <linux/mmc/host.h>
 #include <linux/platform_device.h>
 #include <linux/pwm_backlight.h>
@@ -31,8 +29,6 @@
 #include <linux/gpio_event.h>
 #include <linux/platform_data/s3c-hsotg.h>
 #include <linux/platform_data/exynos_thermal.h>
-#include <linux/mfd/s5m87xx/s5m-pmic.h>
-#include <linux/mfd/s5m87xx/s5m-core.h>
 
 #include <asm/mach/arch.h>
 #include <asm/hardware/gic.h>
@@ -81,841 +77,59 @@
 #include <media/exynos_flite.h>
 
 /* Following are default values for UCON, ULCON and UFCON UART registers */
-#define SMDK4X12_UCON_DEFAULT	(S3C2410_UCON_TXILEVEL |	\
+#define TINY4412_UCON_DEFAULT	(S3C2410_UCON_TXILEVEL |	\
 				 S3C2410_UCON_RXILEVEL |	\
 				 S3C2410_UCON_TXIRQMODE |	\
 				 S3C2410_UCON_RXIRQMODE |	\
 				 S3C2410_UCON_RXFIFO_TOI |	\
 				 S3C2443_UCON_RXERR_IRQEN)
 
-#define SMDK4X12_ULCON_DEFAULT	S3C2410_LCON_CS8
+#define TINY4412_ULCON_DEFAULT	S3C2410_LCON_CS8
 
-#define SMDK4X12_UFCON_DEFAULT	(S3C2410_UFCON_FIFOMODE |	\
+#define TINY4412_UFCON_DEFAULT	(S3C2410_UFCON_FIFOMODE |	\
 				 S5PV210_UFCON_TXTRIG4 |	\
 				 S5PV210_UFCON_RXTRIG4)
 
 
-static struct max77686_regulator_data max77686_regulators[MAX77686_REG_MAX];
-
-static struct s3c2410_uartcfg smdk4x12_uartcfgs[] __initdata = {
+static struct s3c2410_uartcfg tiny4412_uartcfgs[] __initdata = {
 	[0] = {
 		.hwport		= 0,
 		.flags		= 0,
-		.ucon		= SMDK4X12_UCON_DEFAULT,
-		.ulcon		= SMDK4X12_ULCON_DEFAULT,
-		.ufcon		= SMDK4X12_UFCON_DEFAULT,
+		.ucon		= TINY4412_UCON_DEFAULT,
+		.ulcon		= TINY4412_ULCON_DEFAULT,
+		.ufcon		= TINY4412_UFCON_DEFAULT,
 	},
 	[1] = {
 		.hwport		= 1,
 		.flags		= 0,
-		.ucon		= SMDK4X12_UCON_DEFAULT,
-		.ulcon		= SMDK4X12_ULCON_DEFAULT,
-		.ufcon		= SMDK4X12_UFCON_DEFAULT,
+		.ucon		= TINY4412_UCON_DEFAULT,
+		.ulcon		= TINY4412_ULCON_DEFAULT,
+		.ufcon		= TINY4412_UFCON_DEFAULT,
 	},
 	[2] = {
 		.hwport		= 2,
 		.flags		= 0,
-		.ucon		= SMDK4X12_UCON_DEFAULT,
-		.ulcon		= SMDK4X12_ULCON_DEFAULT,
-		.ufcon		= SMDK4X12_UFCON_DEFAULT,
+		.ucon		= TINY4412_UCON_DEFAULT,
+		.ulcon		= TINY4412_ULCON_DEFAULT,
+		.ufcon		= TINY4412_UFCON_DEFAULT,
 	},
 	[3] = {
 		.hwport		= 3,
 		.flags		= 0,
-		.ucon		= SMDK4X12_UCON_DEFAULT,
-		.ulcon		= SMDK4X12_ULCON_DEFAULT,
-		.ufcon		= SMDK4X12_UFCON_DEFAULT,
+		.ucon		= TINY4412_UCON_DEFAULT,
+		.ulcon		= TINY4412_ULCON_DEFAULT,
+		.ufcon		= TINY4412_UFCON_DEFAULT,
 	},
 };
 
-static struct s3c_sdhci_platdata smdk4x12_hsmmc2_pdata __initdata = {
+static struct s3c_sdhci_platdata tiny4412_hsmmc2_pdata __initdata = {
 	.cd_type		= S3C_SDHCI_CD_INTERNAL,
 };
 
-static struct s3c_sdhci_platdata smdk4x12_hsmmc3_pdata __initdata = {
+static struct s3c_sdhci_platdata tiny4412_hsmmc3_pdata __initdata = {
 	.cd_type		= S3C_SDHCI_CD_PERMANENT,
 };
 
-static struct regulator_consumer_supply max8997_buck1 =
-	REGULATOR_SUPPLY("vdd_arm", NULL);
-
-static struct regulator_consumer_supply max8997_buck2 =
-	REGULATOR_SUPPLY("vdd_int", NULL);
-
-static struct regulator_consumer_supply max8997_buck3 =
-	REGULATOR_SUPPLY("vdd_g3d", NULL);
-
-static struct regulator_init_data max8997_buck1_data = {
-	.constraints	= {
-		.name		= "VDD_ARM_SMDK4X12",
-		.min_uV		= 925000,
-		.max_uV		= 1350000,
-		.always_on	= 1,
-		.valid_ops_mask	= REGULATOR_CHANGE_VOLTAGE,
-		.state_mem	= {
-			.disabled	= 1,
-		},
-	},
-	.num_consumer_supplies	= 1,
-	.consumer_supplies	= &max8997_buck1,
-};
-
-static struct regulator_init_data max8997_buck2_data = {
-	.constraints	= {
-		.name		= "VDD_INT_SMDK4X12",
-		.min_uV		= 950000,
-		.max_uV		= 1150000,
-		.always_on	= 1,
-		.valid_ops_mask	= REGULATOR_CHANGE_VOLTAGE,
-		.state_mem	= {
-			.disabled	= 1,
-		},
-	},
-	.num_consumer_supplies	= 1,
-	.consumer_supplies	= &max8997_buck2,
-};
-
-static struct regulator_init_data max8997_buck3_data = {
-	.constraints	= {
-		.name		= "VDD_G3D_SMDK4X12",
-		.min_uV		= 950000,
-		.max_uV		= 1150000,
-		.valid_ops_mask	= REGULATOR_CHANGE_VOLTAGE |
-				  REGULATOR_CHANGE_STATUS,
-		.state_mem	= {
-			.disabled	= 1,
-		},
-	},
-	.num_consumer_supplies	= 1,
-	.consumer_supplies	= &max8997_buck3,
-};
-
-static struct max8997_regulator_data smdk4x12_max8997_regulators[] = {
-	{ MAX8997_BUCK1, &max8997_buck1_data },
-	{ MAX8997_BUCK2, &max8997_buck2_data },
-	{ MAX8997_BUCK3, &max8997_buck3_data },
-};
-
-static struct max8997_platform_data smdk4x12_max8997_pdata = {
-	.num_regulators	= ARRAY_SIZE(smdk4x12_max8997_regulators),
-	.regulators	= smdk4x12_max8997_regulators,
-
-	.buck1_voltage[0] = 1100000,	/* 1.1V */
-	.buck1_voltage[1] = 1100000,	/* 1.1V */
-	.buck1_voltage[2] = 1100000,	/* 1.1V */
-	.buck1_voltage[3] = 1100000,	/* 1.1V */
-	.buck1_voltage[4] = 1100000,	/* 1.1V */
-	.buck1_voltage[5] = 1100000,	/* 1.1V */
-	.buck1_voltage[6] = 1000000,	/* 1.0V */
-	.buck1_voltage[7] = 950000,	/* 0.95V */
-
-	.buck2_voltage[0] = 1100000,	/* 1.1V */
-	.buck2_voltage[1] = 1000000,	/* 1.0V */
-	.buck2_voltage[2] = 950000,	/* 0.95V */
-	.buck2_voltage[3] = 900000,	/* 0.9V */
-	.buck2_voltage[4] = 1100000,	/* 1.1V */
-	.buck2_voltage[5] = 1000000,	/* 1.0V */
-	.buck2_voltage[6] = 950000,	/* 0.95V */
-	.buck2_voltage[7] = 900000,	/* 0.9V */
-
-	.buck5_voltage[0] = 1100000,	/* 1.1V */
-	.buck5_voltage[1] = 1100000,	/* 1.1V */
-	.buck5_voltage[2] = 1100000,	/* 1.1V */
-	.buck5_voltage[3] = 1100000,	/* 1.1V */
-	.buck5_voltage[4] = 1100000,	/* 1.1V */
-	.buck5_voltage[5] = 1100000,	/* 1.1V */
-	.buck5_voltage[6] = 1100000,	/* 1.1V */
-	.buck5_voltage[7] = 1100000,	/* 1.1V */
-};
-#ifdef CONFIG_REGULATOR_MAX77686
-static struct regulator_consumer_supply max77686_buck1 =
-REGULATOR_SUPPLY("vdd_mif", NULL);
-
-static struct regulator_consumer_supply max77686_buck2 =
-REGULATOR_SUPPLY("vdd_arm", NULL);
-
-static struct regulator_consumer_supply max77686_buck3 =
-REGULATOR_SUPPLY("vdd_int", NULL);
-
-static struct regulator_consumer_supply max77686_buck4 =
-REGULATOR_SUPPLY("vdd_g3d", NULL);
-
-static struct regulator_consumer_supply max77686_ldo11_consumer =
-REGULATOR_SUPPLY("vdd_ldo11", NULL);
-
-static struct regulator_consumer_supply max77686_ldo14_consumer =
-REGULATOR_SUPPLY("vdd_ldo14", NULL);
-
-static struct regulator_consumer_supply max77686_ldo12_consumer =
-REGULATOR_SUPPLY("vusb_a", NULL);
-
-static struct regulator_consumer_supply max77686_ldo15_consumer =
-REGULATOR_SUPPLY("vusb_d", NULL);
-
-static struct regulator_consumer_supply max77686_ldo16_consumer =
-REGULATOR_SUPPLY("vdd_hsic", NULL);
-
-static struct regulator_consumer_supply max77686_ldo8_consumer[] = {
-REGULATOR_SUPPLY("vdd", "exynos4-hdmi"),
-REGULATOR_SUPPLY("vdd_pll", "exynos4-hdmi"),
-REGULATOR_SUPPLY("vdd8_mipi", NULL),
-};
-
-static struct regulator_consumer_supply max77686_ldo10_consumer[] = {
-REGULATOR_SUPPLY("vdd_osc", "exynos4-hdmi"),
-REGULATOR_SUPPLY("vdd10_mipi", NULL),
-REGULATOR_SUPPLY("vdd_tmu", NULL),
-};
-
-static struct regulator_init_data max77686_ldo8_data = {
-	.constraints = {
-		.name		= "vdd_ldo8 range",
-		.min_uV		= 1000000,
-		.max_uV		= 1000000,
-		.boot_on	= 1,
-		.valid_ops_mask = REGULATOR_CHANGE_STATUS,
-		.state_mem	= {
-			.disabled	= 1,
-			.mode		= REGULATOR_MODE_STANDBY,
-		},
-		.initial_state = PM_SUSPEND_MEM, 
-	},
-	.num_consumer_supplies	= ARRAY_SIZE(max77686_ldo8_consumer),
-	.consumer_supplies	= max77686_ldo8_consumer,
-};
-
-static struct regulator_init_data max77686_ldo10_data = {
-	.constraints = {
-		.name		= "vdd_ldo10 range",
-		.min_uV		= 1800000,
-		.max_uV		= 1800000,
-		.boot_on	= 1,
-		.valid_ops_mask = REGULATOR_CHANGE_STATUS,
-		.state_mem	= {
-			.disabled	= 1,
-			.mode		= REGULATOR_MODE_STANDBY,
-		},
-		.initial_state = PM_SUSPEND_MEM, 
-	},
-	.num_consumer_supplies	= ARRAY_SIZE(max77686_ldo10_consumer),
-	.consumer_supplies	= max77686_ldo10_consumer,
-};
-
-static struct regulator_init_data max77686_ldo12_data = {
-	.constraints = {
-		.name		= "vdd_ldo12 range",
-		.min_uV		= 3000000,
-		.max_uV		= 3300000,
-		.boot_on	= 1,
-		.valid_ops_mask = REGULATOR_CHANGE_STATUS,
-		.always_on	= 1,
-		.state_mem	= {
-			.disabled	= 1,
-			.mode		= REGULATOR_MODE_STANDBY,
-		},
-		.initial_state = PM_SUSPEND_MEM, 
-	},
-	.num_consumer_supplies	= 1,
-	.consumer_supplies	= &max77686_ldo12_consumer,
-};
-
-static struct regulator_init_data max77686_ldo15_data = {
-	.constraints = {
-		.name		= "vdd_ldo15 range",
-		.min_uV		= 1000000,
-		.max_uV		= 1000000,
-		.boot_on	= 1,
-		.valid_ops_mask = REGULATOR_CHANGE_STATUS,
-		.always_on	= 1,
-		.state_mem	= {
-			.disabled	= 1,
-			.mode		= REGULATOR_MODE_STANDBY,
-		},
-		.initial_state = PM_SUSPEND_MEM, 
-	},
-	.num_consumer_supplies	= 1,
-	.consumer_supplies	= &max77686_ldo15_consumer,
-};
-
-static struct regulator_init_data max77686_ldo16_data = {
-	.constraints = {
-		.name		= "vdd_ldo16 range",
-		.min_uV		= 1800000,
-		.max_uV		= 1800000,
-		.boot_on	= 1,
-		.valid_ops_mask = REGULATOR_CHANGE_STATUS,
-		.always_on	= 1,
-		.state_mem	= {
-			.disabled	= 1,
-			.mode		= REGULATOR_MODE_STANDBY,
-		},
-		.initial_state = PM_SUSPEND_MEM, 
-	},
-	.num_consumer_supplies	= 1,
-	.consumer_supplies	= &max77686_ldo16_consumer,
-};
-
-static struct regulator_init_data max77686_buck1_data = {
-	.constraints = {
-		.name		= "vdd_mif range",
-		.min_uV		= 800000,
-		.max_uV		= 1300000,
-		.always_on	= 1,
-		.boot_on	= 1,
-		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
-				  REGULATOR_CHANGE_STATUS,
-		.state_mem	= {
-			.disabled	= 1,
-			.mode		= REGULATOR_MODE_STANDBY,
-		},
-		.initial_state = PM_SUSPEND_MEM, 
-	},
-	.num_consumer_supplies = 1,
-	.consumer_supplies = &max77686_buck1,
-};
-
-static struct regulator_init_data max77686_buck2_data = {
-	.constraints = {
-		.name		= "vdd_arm range",
-		.min_uV		= 800000,
-		.max_uV		= 1350000,
-		.always_on	= 1,
-		.boot_on	= 1,
-		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
-				  REGULATOR_CHANGE_STATUS,
-		.state_mem	= {
-			.disabled	= 1,
-			.mode		= REGULATOR_MODE_STANDBY,
-		},
-		.initial_state = PM_SUSPEND_MEM, 
-	},
-	.num_consumer_supplies 	= 1,
-	.consumer_supplies	= &max77686_buck2,
-};
-
-static struct regulator_init_data max77686_buck3_data = {
-	.constraints = {
-		.name		= "vdd_int range",
-		.min_uV		= 800000,
-		.max_uV		= 1150000,
-		.always_on	= 1,
-		.boot_on	= 1,
-		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
-				  REGULATOR_CHANGE_STATUS,
-		.state_mem	= {
-			.disabled	= 1,
-			.mode		= REGULATOR_MODE_STANDBY,
-		},
-		.initial_state = PM_SUSPEND_MEM, 
-	},
-	.num_consumer_supplies = 1,
-	.consumer_supplies = &max77686_buck3,
-};
-
-static struct regulator_init_data max77686_buck4_data = {
-	.constraints = {
-		.name		= "vdd_g3d range",
-		.min_uV		= 850000,
-		.max_uV		= 1200000,
-		.boot_on	= 1,
-		.always_on	= 1,
-		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
-				  REGULATOR_CHANGE_STATUS,
-		.state_mem	= {
-			.disabled	= 1,
-			.mode		= REGULATOR_MODE_STANDBY,
-		},
-		.initial_state = PM_SUSPEND_MEM, 
-	},
-	.num_consumer_supplies = 1,
-	.consumer_supplies = &max77686_buck4,
-};
-
-static struct regulator_init_data __initdata max77686_ldo11_data = {
-	.constraints	= {
-		.name		= "vdd_ldo11 range",
-		.min_uV		= 1900000,
-		.max_uV		= 1900000,
-		.apply_uV	= 1,
-		.state_mem	= {
-			.disabled	= 1,
-			.mode		= REGULATOR_MODE_STANDBY,
-		},
-	},
-	.num_consumer_supplies	= 1,
-	.consumer_supplies	= &max77686_ldo11_consumer,
-};
-
-static struct regulator_init_data __initdata max77686_ldo14_data = {
-	.constraints	= {
-		.name		= "vdd_ldo14 range",
-		.min_uV		= 1900000,
-		.max_uV		= 1900000,
-		.apply_uV	= 1,
-		.always_on	= 1,
-		.state_mem	= {
-			.disabled	= 1,
-			.mode		= REGULATOR_MODE_STANDBY,
-		},
-	},
-	.num_consumer_supplies	= 1,
-	.consumer_supplies	= &max77686_ldo14_consumer,
-};
-
-static struct regulator_init_data __initdata max77686_always_on = {
-	.constraints = {
-		.always_on 	= 1,
-		.state_mem 	= {
-			.disabled	= 1,
-			.mode		= REGULATOR_MODE_STANDBY,
-		},
-	},
-};
-
-static void max77686_populate_pdata (void)
-{
-	int i;
-
-	/* LDOs[0-7] and BUCKs[5-7] are not initialized yet but required to
-	 * be always enabled for stability */
-	for (i = 0; i <= MAX77686_LDO7; i++)
-		max77686_regulators[i].initdata = &max77686_always_on;
-	max77686_regulators[MAX77686_BUCK5].initdata = &max77686_always_on;
-	max77686_regulators[MAX77686_BUCK6].initdata = &max77686_always_on;
-	max77686_regulators[MAX77686_BUCK7].initdata = &max77686_always_on;
-
-	max77686_regulators[MAX77686_BUCK1].initdata = &max77686_buck1_data;
-	max77686_regulators[MAX77686_BUCK2].initdata = &max77686_buck2_data;
-	max77686_regulators[MAX77686_BUCK3].initdata = &max77686_buck3_data;
-	max77686_regulators[MAX77686_BUCK4].initdata = &max77686_buck4_data;
-	max77686_regulators[MAX77686_LDO8].initdata  = &max77686_ldo8_data;
-	max77686_regulators[MAX77686_LDO10].initdata = &max77686_ldo10_data;
-	max77686_regulators[MAX77686_LDO11].initdata = &max77686_ldo11_data;
-	max77686_regulators[MAX77686_LDO12].initdata = &max77686_ldo12_data;
-	max77686_regulators[MAX77686_LDO14].initdata = &max77686_ldo14_data;
-	max77686_regulators[MAX77686_LDO15].initdata = &max77686_ldo15_data;
-	max77686_regulators[MAX77686_LDO16].initdata = &max77686_ldo16_data;
-
-	regulator_has_full_constraints();
-}
-
-static struct max77686_platform_data smdk4412_max77686_pdata = {
-	.num_regulators = ARRAY_SIZE(max77686_regulators),
-	.regulators = max77686_regulators,
-};
-#endif
-#ifdef CONFIG_REGULATOR_S5M8767
-/* S5M8767 Regulator */
-static int s5m_cfg_irq(void)
-{
-        /* AP_PMIC_IRQ: EINT26 */
-	s3c_gpio_cfgpin(EXYNOS4_GPX3(2), S3C_GPIO_SFN(0xF));
-	s3c_gpio_setpull(EXYNOS4_GPX3(2), S3C_GPIO_PULL_UP);
-        return 0;
-}
-static struct regulator_consumer_supply s5m8767_buck1_consumer =
-REGULATOR_SUPPLY("vdd_mif", NULL);
-
-static struct regulator_consumer_supply s5m8767_buck2_consumer =
-REGULATOR_SUPPLY("vdd_arm", NULL);
-
-static struct regulator_consumer_supply s5m8767_buck3_consumer =
-REGULATOR_SUPPLY("vdd_int", NULL);
-
-static struct regulator_consumer_supply s5m8767_buck4_consumer =
-REGULATOR_SUPPLY("vdd_g3d", NULL);
-
-static struct regulator_consumer_supply s5m8767_ldo11_consumer =
-REGULATOR_SUPPLY("vdd_ldo11", NULL);
-
-static struct regulator_consumer_supply s5m8767_ldo14_consumer =
-REGULATOR_SUPPLY("vdd_ldo14", NULL);
-
-static struct regulator_consumer_supply s5m8767_ldo12_consumer =
-REGULATOR_SUPPLY("vusb_a", NULL);
-
-static struct regulator_consumer_supply s5m8767_ldo15_consumer =
-REGULATOR_SUPPLY("vusb_d", NULL);
-
-static struct regulator_consumer_supply s5m8767_ldo16_consumer =
-REGULATOR_SUPPLY("vdd_hsic", NULL);
-
-static struct regulator_consumer_supply s5m8767_ldo8_consumer[] = {
-REGULATOR_SUPPLY("vdd", "exynos4-hdmi"),
-REGULATOR_SUPPLY("vdd_pll", "exynos4-hdmi"),
-REGULATOR_SUPPLY("vdd8_mipi", NULL),
-};
-static struct regulator_consumer_supply s5m8767_ldo10_consumer[] = {
-REGULATOR_SUPPLY("vdd_osc", "exynos4-hdmi"),
-REGULATOR_SUPPLY("vdd10_mipi", NULL),
-REGULATOR_SUPPLY("vdd_tmu", NULL),
-};
-
-static struct regulator_init_data s5m8767_ldo8_data = {
-	.constraints	={
-		.name		= "vdd_ldo8 range",
-		.min_uV		= 1000000,
-		.max_uV         = 1000000,
-		.boot_on        = 1,
-		.always_on      = 1,
-		.valid_ops_mask = REGULATOR_CHANGE_STATUS,
-		.state_mem      = {
-			.disabled       = 1,
-			.mode  	        = REGULATOR_MODE_STANDBY,
-		},
-		.initial_state = PM_SUSPEND_MEM,
-	},
-	.num_consumer_supplies  = ARRAY_SIZE(s5m8767_ldo8_consumer),
-	.consumer_supplies      = s5m8767_ldo8_consumer,
-};
-
-static struct regulator_init_data s5m8767_ldo10_data = {
-	.constraints = {
-		.name           = "vdd_ldo10 range",
-		.min_uV         = 1800000,
-		.max_uV         = 1800000,
-		.boot_on        = 1,
-		.valid_ops_mask = REGULATOR_CHANGE_STATUS,
-		.state_mem      = {
-			.disabled       = 1,
-			.mode           = REGULATOR_MODE_STANDBY,
-		},
-		.initial_state = PM_SUSPEND_MEM,
-	},
-	.num_consumer_supplies  = ARRAY_SIZE(s5m8767_ldo10_consumer),
-	.consumer_supplies      = s5m8767_ldo10_consumer,
-};
-
-static struct regulator_init_data s5m8767_ldo12_data = {
-	.constraints = {
-		.name           = "vdd_ldo12 range",
-		.min_uV         = 3000000,
-		.max_uV         = 3000000,
-		.boot_on        = 1,
-		.valid_ops_mask = REGULATOR_CHANGE_STATUS | REGULATOR_CHANGE_VOLTAGE,
-		.always_on      = 1,
-		.state_mem      = {
-			.disabled       = 1,
-			.mode           = REGULATOR_MODE_STANDBY,
-		},
-	.initial_state = PM_SUSPEND_MEM,
-	},
-	.num_consumer_supplies  = 1,
-	.consumer_supplies      = &s5m8767_ldo12_consumer,
-};
-
-static struct regulator_init_data s5m8767_ldo15_data = {
-	.constraints = {
-		.name           = "vdd_ldo15 range",
-		.min_uV         = 1000000,
-		.max_uV         = 1000000,
-		.boot_on        = 1,
-		.valid_ops_mask = REGULATOR_CHANGE_STATUS,
-		.always_on      = 1,
-		.state_mem      = {
-			.disabled       = 1,
-			.mode           = REGULATOR_MODE_STANDBY,
-		},
-		.initial_state = PM_SUSPEND_MEM,
-	},
-	.num_consumer_supplies  = 1,
-	.consumer_supplies      = &s5m8767_ldo15_consumer,
-};
-
-static struct regulator_init_data s5m8767_ldo16_data = {
-	.constraints = {
-		.name           = "vdd_ldo16 range",
-		.min_uV         = 1800000,
-		.max_uV         = 1800000,
-		.boot_on        = 1,
-		.valid_ops_mask = REGULATOR_CHANGE_STATUS,
-		.always_on      = 1,
-		.state_mem      = {
-			.disabled       = 1,
-			.mode           = REGULATOR_MODE_STANDBY,
-		},
-		.initial_state = PM_SUSPEND_MEM,
-	},
-	.num_consumer_supplies  = 1,
-	.consumer_supplies      = &s5m8767_ldo16_consumer,
-};
-
-static struct regulator_init_data __initdata s5m8767_ldo11_data = {
-	.constraints    = {
-		.name           = "vdd_ldo11 range",
-		.min_uV         = 1800000,
-		.max_uV         = 1800000,
-		.always_on      = 1,
-		.apply_uV       = 1,
-		.state_mem      = {
-			.disabled       = 1,
-			.mode           = REGULATOR_MODE_STANDBY,
-		},
-	},
-	.num_consumer_supplies  = 1,
-	.consumer_supplies      = &s5m8767_ldo11_consumer,
-};
-
-static struct regulator_init_data __initdata s5m8767_ldo14_data = {
-	.constraints    = {
-		.name           = "vdd_ldo14 range",
-		.min_uV         = 1800000,
-		.max_uV         = 1800000,
-		.apply_uV       = 1,
-		.always_on      = 1,
-		.state_mem      = {
-			.disabled       = 1,
-			.mode           = REGULATOR_MODE_STANDBY,
-		},
-	},
-	.num_consumer_supplies  = 1,
-	.consumer_supplies      = &s5m8767_ldo14_consumer,
-};
-
-static struct regulator_init_data s5m8767_buck1_data = {
-	.constraints    = {
-		.name           = "vdd_mif range",
-		.min_uV         = 800000,
-		.max_uV         = 1100000,
-		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
-			REGULATOR_CHANGE_STATUS,
-		.always_on = 1,
-		.boot_on = 1,
-		.state_mem      = {
-			.disabled       = 1,
-		},
-	},
-	.num_consumer_supplies  = 1,
-	.consumer_supplies      = &s5m8767_buck1_consumer,
-};
-
-static struct regulator_init_data s5m8767_buck2_data = {
-	.constraints    = {
-		.name           = "vdd_arm range",
-		.min_uV         =  800000,
-		.max_uV         = 1350000,
-		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
-			REGULATOR_CHANGE_STATUS,
-		.always_on = 1,
-		.boot_on = 1,
-		.state_mem      = {
-				.disabled       = 1,
-		},
-	},
-	.num_consumer_supplies  = 1,
-	.consumer_supplies      = &s5m8767_buck2_consumer,
-};
-
-static struct regulator_init_data s5m8767_buck3_data = {
-	.constraints    = {
-		.name           = "vdd_int range",
-		.min_uV         =  800000,
-		.max_uV         = 1150000,
-		.apply_uV       = 1,
-		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
-				REGULATOR_CHANGE_STATUS,
-		.always_on = 1,
-		.boot_on = 1,
-		.state_mem      = {
-			.uV             = 1100000,
-			.mode           = REGULATOR_MODE_NORMAL,
-			.disabled       = 1,
-		},
-	},
-	.num_consumer_supplies  = 1,
-	.consumer_supplies      = &s5m8767_buck3_consumer,
-};
-static struct regulator_init_data s5m8767_buck4_data = {
-	.constraints    = {
-		.name           = "vdd_g3d range",
-		.min_uV         = 850000,
-		.max_uV         = 1200000,
-		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
-				REGULATOR_CHANGE_STATUS,
-		.always_on = 1,
-		.boot_on = 1,
-		.state_mem      = {
-			.disabled       = 1,
-			},
-		},
-	.num_consumer_supplies = 1,
-	.consumer_supplies = &s5m8767_buck4_consumer,
-};
-
-static struct s5m_regulator_data pegasus_regulators[] = {
-	{ S5M8767_LDO8,  &s5m8767_ldo8_data},
-	{ S5M8767_LDO10, &s5m8767_ldo10_data},
-	{ S5M8767_LDO11, &s5m8767_ldo11_data},
-	{ S5M8767_LDO12, &s5m8767_ldo12_data},
-	{ S5M8767_LDO14, &s5m8767_ldo14_data},
-	{ S5M8767_LDO15, &s5m8767_ldo15_data},
-	{ S5M8767_LDO16, &s5m8767_ldo16_data},
-	{ S5M8767_BUCK1, &s5m8767_buck1_data },
-	{ S5M8767_BUCK2, &s5m8767_buck2_data },
-	{ S5M8767_BUCK3, &s5m8767_buck3_data },
-	{ S5M8767_BUCK4, &s5m8767_buck4_data },
-};
-
-struct s5m_opmode_data s5m8767_opmode_data[S5M8767_REG_MAX] = {
-	[S5M8767_BUCK1] = {S5M8767_BUCK1, S5M_OPMODE_SUSPEND},
-	[S5M8767_BUCK2] = {S5M8767_BUCK2, S5M_OPMODE_SUSPEND},
-	[S5M8767_BUCK3] = {S5M8767_BUCK3, S5M_OPMODE_SUSPEND},
-	[S5M8767_BUCK4] = {S5M8767_BUCK4, S5M_OPMODE_SUSPEND},
-	[S5M8767_LDO8]  = {S5M8767_LDO8,  S5M_OPMODE_SUSPEND},
-	[S5M8767_LDO10] = {S5M8767_LDO10, S5M_OPMODE_SUSPEND},
-	[S5M8767_LDO11] = {S5M8767_LDO11, S5M_OPMODE_SUSPEND},
-	[S5M8767_LDO12] = {S5M8767_LDO12, S5M_OPMODE_SUSPEND},
-	[S5M8767_LDO14] = {S5M8767_LDO14, S5M_OPMODE_SUSPEND},
-	[S5M8767_LDO15] = {S5M8767_LDO15, S5M_OPMODE_SUSPEND},
-	[S5M8767_LDO16] = {S5M8767_LDO16, S5M_OPMODE_SUSPEND},
-};
-
-static struct s5m_platform_data exynos4_s5m8767_pdata = {
-	.device_type            = S5M8767X,
-	.irq_base               = IRQ_BOARD_START,
-	.num_regulators         = ARRAY_SIZE(pegasus_regulators),
-	.regulators             = pegasus_regulators,
-	.cfg_pmic_irq           = s5m_cfg_irq,
-	.wakeup                 = 1,
-	.opmode            = s5m8767_opmode_data,
-	//        .wtsr_smpl              = 1,
-
-	.buck_default_idx       = 1,
-	.buck_gpios[0]          = EXYNOS4_GPL0(3),
-	.buck_gpios[1]          = EXYNOS4_GPL0(4),
-	.buck_gpios[2]          = EXYNOS4_GPL0(6),
-
-	.buck_ramp_delay        = 25,
-	.buck2_ramp_enable      = true,
-	.buck3_ramp_enable      = true,
-	.buck4_ramp_enable      = true,
-#if 0
-	.buck_ds[0]             = EXYNOS4_GPL0(0),
-	.buck_ds[1]             = EXYNOS4_GPL0(1),
-	.buck_ds[2]             = EXYNOS4_GPL0(2),
-	.buck2_init             = 1100000,
-	.buck3_init             = 1000000,
-	.buck4_init             = 1000000,
-#endif
-};
-/* End of S5M8767 */
-#endif
-
-static struct regulator_consumer_supply wm8994_fixed_voltage0_supplies[] = {
-        REGULATOR_SUPPLY("AVDD2", "1-001a"),
-        REGULATOR_SUPPLY("CPVDD", "1-001a"),
-};
-
-static struct regulator_consumer_supply wm8994_fixed_voltage1_supplies[] = {
-        REGULATOR_SUPPLY("SPKVDD1", "1-001a"),
-        REGULATOR_SUPPLY("SPKVDD2", "1-001a"),
-};
-
-static struct regulator_consumer_supply wm8994_fixed_voltage2_supplies =
-        REGULATOR_SUPPLY("DBVDD", "1-001a");
-
-static struct regulator_init_data wm8994_fixed_voltage0_init_data = {
-        .constraints = {
-                .always_on = 1,
-        },
-        .num_consumer_supplies  = ARRAY_SIZE(wm8994_fixed_voltage0_supplies),
-        .consumer_supplies      = wm8994_fixed_voltage0_supplies,
-};
-
-static struct regulator_init_data wm8994_fixed_voltage1_init_data = {
-        .constraints = {
-                .always_on = 1,
-        },
-        .num_consumer_supplies  = ARRAY_SIZE(wm8994_fixed_voltage1_supplies),
-        .consumer_supplies      = wm8994_fixed_voltage1_supplies,
-};
-
-static struct regulator_init_data wm8994_fixed_voltage2_init_data = {
-        .constraints = {
-                .always_on = 1,
-        },
-        .num_consumer_supplies  = 1,
-        .consumer_supplies      = &wm8994_fixed_voltage2_supplies,
-};
-
-static struct fixed_voltage_config wm8994_fixed_voltage0_config = {
-        .supply_name    = "VDD_1.8V",
-        .microvolts     = 1800000,
-        .gpio           = -EINVAL,
-        .init_data      = &wm8994_fixed_voltage0_init_data,
-};
-
-static struct fixed_voltage_config wm8994_fixed_voltage1_config = {
-        .supply_name    = "DC_5V",
-        .microvolts     = 5000000,
-        .gpio           = -EINVAL,
-        .init_data      = &wm8994_fixed_voltage1_init_data,
-};
-
-static struct fixed_voltage_config wm8994_fixed_voltage2_config = {
-        .supply_name    = "VDD_3.3V",
-        .microvolts     = 3300000,
-        .gpio           = -EINVAL,
-        .init_data      = &wm8994_fixed_voltage2_init_data,
-};
-
-static struct platform_device wm8994_fixed_voltage0 = {
-        .name           = "reg-fixed-voltage",
-        .id             = 0,
-        .dev            = {
-                .platform_data  = &wm8994_fixed_voltage0_config,
-        },
-};
-
-static struct platform_device wm8994_fixed_voltage1 = {
-        .name           = "reg-fixed-voltage",
-        .id             = 1,
-        .dev            = {
-                .platform_data  = &wm8994_fixed_voltage1_config,
-        },
-};
-
-static struct platform_device wm8994_fixed_voltage2 = {
-        .name           = "reg-fixed-voltage",
-        .id             = 2,
-        .dev            = {
-                .platform_data  = &wm8994_fixed_voltage2_config,
-        },
-};
-
-static struct regulator_consumer_supply wm8994_avdd1_supply =
-        REGULATOR_SUPPLY("AVDD1", "1-001a");
-
-static struct regulator_consumer_supply wm8994_dcvdd_supply =
-        REGULATOR_SUPPLY("DCVDD", "1-001a");
-
-static struct regulator_init_data wm8994_ldo1_data = {
-        .constraints    = {
-                .name           = "AVDD1",
-        },
-        .num_consumer_supplies  = 1,
-        .consumer_supplies      = &wm8994_avdd1_supply,
-};
-
-static struct regulator_init_data wm8994_ldo2_data = {
-        .constraints    = {
-                .name           = "DCVDD",
-        },
-        .num_consumer_supplies  = 1,
-        .consumer_supplies      = &wm8994_dcvdd_supply,
-};
-
-static struct wm8994_pdata wm8994_platform_data = {
-        /* configure gpio1 function: 0x0001(Logic level input/output) */
-        .gpio_defaults[0] = 0x0001,
-        /* If the i2s0 and i2s2 is enabled simultaneously */
-        .gpio_defaults[7] = 0x8100, /* GPIO8  DACDAT3 in */
-        .gpio_defaults[8] = 0x0100, /* GPIO9  ADCDAT3 out */
-        .gpio_defaults[9] = 0x0100, /* GPIO10 LRCLK3  out */
-        .gpio_defaults[10] = 0x0100,/* GPIO11 BCLK3   out */
-        .ldo[0] = { 0, &wm8994_ldo1_data },
-        .ldo[1] = { 0, &wm8994_ldo2_data },
-};
 
 static struct s3c2410_platform_i2c tiny4412_i2c0_data __initdata = {
 	.flags			= 0,
@@ -933,28 +147,12 @@ static struct wm8960_data wm8960_pdata = {
 };
 #endif
 
-static struct i2c_board_info smdk4x12_i2c_devs0[] __initdata = {
+static struct i2c_board_info tiny4412_i2c_devs0[] __initdata = {
 #ifdef CONFIG_SND_SOC_WM8960_TINY4412
 	{
 		I2C_BOARD_INFO("wm8960", 0x1a),
 		.platform_data = &wm8960_pdata,
 	},
-#endif
-#if 0
-#ifdef CONFIG_REGULATOR_S5M8767
-	{
-		I2C_BOARD_INFO("s5m87xx", 0xCC >> 1),
-		.platform_data	= &exynos4_s5m8767_pdata,
-		.irq		= IRQ_EINT(26),
-	},
-#endif
-#ifdef CONFIG_REGULATOR_MAX77686
-	{
-		I2C_BOARD_INFO("max77686", (0x12 >> 1)),
-		.platform_data	= &smdk4412_max77686_pdata,
-		.irq		= IRQ_EINT(26),
-	},
-#endif
 #endif
 };
 
@@ -977,7 +175,7 @@ static struct s3c2410_platform_i2c tiny4412_i2c1_data __initdata = {
 	.sda_delay		= 100,
 };
 
-static struct i2c_board_info smdk4x12_i2c_devs1[] __initdata = {
+static struct i2c_board_info tiny4412_i2c_devs1[] __initdata = {
 #ifdef CONFIG_TOUCHSCREEN_FT5X0X
 	{
 		I2C_BOARD_INFO("ft5x0x_ts", (0x70 >> 1)),
@@ -992,7 +190,7 @@ static struct i2c_board_info smdk4x12_i2c_devs1[] __initdata = {
 #endif
 };
 
-static struct i2c_board_info smdk4x12_i2c_devs2[] __initdata = {
+static struct i2c_board_info tiny4412_i2c_devs2[] __initdata = {
 	/* nothing here yet */
 };
 
@@ -1039,7 +237,7 @@ static struct i2c_board_info s5k6a3_sensor_info = {
 #endif
 
 #ifdef CONFIG_VIDEO_S5K6A3
-static int smdk4x12_cam1_reset(int dummy) 
+static int tiny4412_cam1_reset(int dummy) 
 {
         int err;
 
@@ -1060,7 +258,7 @@ static int smdk4x12_cam1_reset(int dummy)
 static struct s3c_platform_camera s5k6a3 = {
         .id             = CAMERA_CSI_D,
         .clk_name       = "sclk_cam1",
-        .cam_power      = smdk4x12_cam1_reset,
+        .cam_power      = tiny4412_cam1_reset,
         .type           = CAM_TYPE_MIPI,
         .fmt            = MIPI_CSI_RAW10,
         .order422       = CAM_ORDER422_8BIT_YCBYCR,
@@ -1100,7 +298,7 @@ static struct s3c_platform_fimc fimc_plat = {
 	},
 };
 #endif
-static struct s5p_fimc_isp_info smdk4x12_camera_sensors[] = {
+static struct s5p_fimc_isp_info tiny4412_camera_sensors[] = {
 #ifdef CONFIG_VIDEO_S5K6A3
 	{
                 .board_info     = &s5k6a3_sensor_info,
@@ -1109,7 +307,7 @@ static struct s5p_fimc_isp_info smdk4x12_camera_sensors[] = {
 		.i2c_bus_num    = 1,
                 .mux_id         = 1, /* A-Port : 0, B-Port : 1 */
                 .flite_id       = FLITE_IDX_B,
-                .cam_power      = smdk4x12_cam1_reset,
+                .cam_power      = tiny4412_cam1_reset,
 		.flags          = 0,
                 .csi_data_align = 24,
                 .use_isp        = true,
@@ -1129,18 +327,18 @@ static struct s5p_fimc_isp_info smdk4x12_camera_sensors[] = {
 #endif
 };
 static struct s5p_platform_fimc fimc_md_platdata = {
-	.isp_info	= smdk4x12_camera_sensors,
-	.num_clients	= ARRAY_SIZE(smdk4x12_camera_sensors),
+	.isp_info	= tiny4412_camera_sensors,
+	.num_clients	= ARRAY_SIZE(tiny4412_camera_sensors),
 #ifdef CONFIG_VIDEO_S5K6A3
 	.fimc_plat	= &fimc_plat,
 #endif
 };
 
-static struct gpio smdk4x12_camera_gpios[] = {
+static struct gpio tiny4412_camera_gpios[] = {
 	{ GPIO_CAM_8M_ISP_INT,	GPIOF_IN,            "8M_ISP_INT"  },
 	{ GPIO_CAM_MEGA_nRST,	GPIOF_OUT_INIT_LOW,  "CAM_8M_NRST" },
 };
-static void __init smdk4x12_camera_init(void)
+static void __init tiny4412_camera_init(void)
 {
 	s3c_set_platdata(&mipi_csis_platdata, sizeof(mipi_csis_platdata),
 			 &s5p_device_mipi_csis0);
@@ -1150,8 +348,8 @@ static void __init smdk4x12_camera_init(void)
 			 &s5p_device_fimc_md);
 	
 
-	if (gpio_request_array(smdk4x12_camera_gpios,
-			       ARRAY_SIZE(smdk4x12_camera_gpios))) {
+	if (gpio_request_array(tiny4412_camera_gpios,
+			       ARRAY_SIZE(tiny4412_camera_gpios))) {
 		pr_err("%s: GPIO request failed\n", __func__);
 		return;
 	}
@@ -1201,7 +399,7 @@ static struct s3c2410_platform_i2c tiny4412_i2c3_data __initdata = {
 	.sda_delay		= 100,
 };
 
-static struct i2c_board_info smdk4x12_i2c_devs3[] __initdata = {
+static struct i2c_board_info tiny4412_i2c_devs3[] __initdata = {
 #ifdef CONFIG_MXC_MMA845X
 	{
 		.type = "mma845x",
@@ -1218,7 +416,7 @@ static struct i2c_board_info smdk4x12_i2c_devs3[] __initdata = {
 };
 
 /* I2C module and id for HDMIPHY */
-static struct i2c_board_info smdk4x12_i2c_hdmiphy[] __initdata = {
+static struct i2c_board_info tiny4412_i2c_hdmiphy[] __initdata = {
 	{ I2C_BOARD_INFO("hdmiphy-exynos4412", 0x38), }
 };
 
@@ -1239,28 +437,30 @@ static struct s3c2410_platform_i2c tiny4412_i2c7_data __initdata = {
 	.sda_delay		= 100,
 };
 
-static struct i2c_board_info smdk4x12_i2c_devs7[] __initdata = {
+static struct i2c_board_info tiny4412_i2c_devs7[] __initdata = {
 	{
 		I2C_BOARD_INFO("s5p_ddc", (0x74 >> 1)),
 	},
 };
 
-static void __init smdk4x12_touch_init(void)
+static void __init tiny4412_touch_init(void)
 {
 	/* nothing here yet */
 }
 
-static struct samsung_bl_gpio_info smdk4x12_bl_gpio_info = {
+static struct samsung_bl_gpio_info tiny4412_bl_gpio_info = {
 	.no = EXYNOS4_GPD0(1),
 	.func = S3C_GPIO_SFN(2),
 };
 
-static struct platform_pwm_backlight_data smdk4x12_bl_data = {
+static struct platform_pwm_backlight_data tiny4412_bl_data = {
 	.pwm_id = 1,
 	.pwm_period_ns  = 1000,
 };
 
-static struct s3c_fb_pd_win smdk4x12_fb_win0 = {
+#ifdef CONFIG_FB_S3C
+
+static struct s3c_fb_pd_win tiny4412_fb_win0 = {
 	.xres			= 480,
 	.yres			= 800,
 	.virtual_x		= 480,
@@ -1271,7 +471,7 @@ static struct s3c_fb_pd_win smdk4x12_fb_win0 = {
 	.height			= 109,
 };
 
-static struct s3c_fb_pd_win smdk4x12_fb_win1 = {
+static struct s3c_fb_pd_win tiny4412_fb_win1 = {
 	.xres			= 480,
 	.yres			= 800,
 	.virtual_x		= 480,
@@ -1282,7 +482,7 @@ static struct s3c_fb_pd_win smdk4x12_fb_win1 = {
 	.height			= 109,
 };
 
-static struct s3c_fb_pd_win smdk4x12_fb_win2 = {
+static struct s3c_fb_pd_win tiny4412_fb_win2 = {
 	.xres			= 480,
 	.yres			= 800,
 	.virtual_x		= 480,
@@ -1293,7 +493,7 @@ static struct s3c_fb_pd_win smdk4x12_fb_win2 = {
 	.height			= 109,
 };
 
-static struct s3c_fb_pd_win smdk4x12_fb_win3 = {
+static struct s3c_fb_pd_win tiny4412_fb_win3 = {
 	.xres			= 480,
 	.yres			= 800,
 	.virtual_x		= 480,
@@ -1304,7 +504,7 @@ static struct s3c_fb_pd_win smdk4x12_fb_win3 = {
 	.height			= 109,
 };
 
-static struct s3c_fb_pd_win smdk4x12_fb_win4 = {
+static struct s3c_fb_pd_win tiny4412_fb_win4 = {
 	.xres			= 480,
 	.yres			= 800,
 	.virtual_x		= 480,
@@ -1315,7 +515,7 @@ static struct s3c_fb_pd_win smdk4x12_fb_win4 = {
 	.height			= 109,
 };
 
-static struct fb_videomode smdk4x12_lcd_timing = {
+static struct fb_videomode tiny4412_lcd_timing = {
 	.left_margin	= 9,
 	.right_margin	= 9,
 	.upper_margin	= 5,
@@ -1326,13 +526,13 @@ static struct fb_videomode smdk4x12_lcd_timing = {
 	.yres		= 800,
 };
 
-static struct s3c_fb_platdata smdk4x12_lcd0_pdata __initdata = {
-	.win[0]		= &smdk4x12_fb_win0,
-	.win[1]		= &smdk4x12_fb_win1,
-	.win[2]		= &smdk4x12_fb_win2,
-	.win[3]		= &smdk4x12_fb_win3,
-	.win[4]		= &smdk4x12_fb_win4,
-	.vtiming	= &smdk4x12_lcd_timing,
+static struct s3c_fb_platdata tiny4412_lcd0_pdata __initdata = {
+	.win[0]		= &tiny4412_fb_win0,
+	.win[1]		= &tiny4412_fb_win1,
+	.win[2]		= &tiny4412_fb_win2,
+	.win[3]		= &tiny4412_fb_win3,
+	.win[4]		= &tiny4412_fb_win4,
+	.vtiming	= &tiny4412_lcd_timing,
 	.vidcon0	= VIDCON0_VIDOUT_RGB | VIDCON0_PNRMODE_RGB,
 	.vidcon1	= VIDCON1_INV_HSYNC | VIDCON1_INV_VSYNC,
 	.setup_gpio	= exynos4_fimd0_gpio_setup_24bpp,
@@ -1395,6 +595,7 @@ static void __init tiny4412_fb_init_pdata(struct s3c_fb_platdata *pd) {
 
 	pd->vidcon1 = val;
 }
+#endif
 
 #ifdef CONFIG_S3C64XX_DEV_SPI0
 static struct s3c64xx_spi_csinfo spi0_csi[] = {
@@ -1586,7 +787,7 @@ static void __init exynos_bootdev_init(void)
 		exynos_dwmci_pdata.caps2 |= capboot;
 #endif
 	} else if (is_bootfrom_sd()) {
-		smdk4x12_hsmmc2_pdata.host_caps2 |= capboot;
+		tiny4412_hsmmc2_pdata.host_caps2 |= capboot;
 	} else {
 		/* oops...should never fly to here */
 		printk(KERN_ERR "Unknown boot device\n");
@@ -1679,7 +880,7 @@ static struct platform_device tiny4412_device_adc = {
 };
 
 #ifdef CONFIG_SAMSUNG_DEV_KEYPAD
-static uint32_t smdk4x12_keymap[] __initdata = {
+static uint32_t tiny4412_keymap[] __initdata = {
 	/* KEY(row, col, keycode) */
 	KEY(1, 3, KEY_1), KEY(1, 4, KEY_2), KEY(1, 5, KEY_3),
 	KEY(1, 6, KEY_4), KEY(1, 7, KEY_5),
@@ -1688,13 +889,13 @@ static uint32_t smdk4x12_keymap[] __initdata = {
 	KEY(0, 6, KEY_DOWN), KEY(0, 3, KEY_MENU), KEY(0, 4, KEY_RIGHT)
 };
 
-static struct matrix_keymap_data smdk4x12_keymap_data __initdata = {
-	.keymap			= smdk4x12_keymap,
-	.keymap_size	= ARRAY_SIZE(smdk4x12_keymap),
+static struct matrix_keymap_data tiny4412_keymap_data __initdata = {
+	.keymap			= tiny4412_keymap,
+	.keymap_size	= ARRAY_SIZE(tiny4412_keymap),
 };
 
-static struct samsung_keypad_platdata smdk4x12_keypad_data __initdata = {
-	.keymap_data	= &smdk4x12_keymap_data,
+static struct samsung_keypad_platdata tiny4412_keypad_data __initdata = {
+	.keymap_data	= &tiny4412_keymap_data,
 	.rows			= 3,
 	.cols			= 8,
 };
@@ -1707,7 +908,7 @@ static struct platform_device tiny4412_audio = {
 };
 
 /* USB OTG */
-static struct s3c_hsotg_plat smdk4x12_hsotg_pdata;
+static struct s3c_hsotg_plat tiny4412_hsotg_pdata;
 
 static struct platform_device exynos4_bus_devfreq = {
 	.name		= "exynos4412-busfreq",
@@ -1715,11 +916,11 @@ static struct platform_device exynos4_bus_devfreq = {
 };
 
 /* USB EHCI */
-static struct s5p_ehci_platdata smdk4x12_ehci_pdata;
+static struct s5p_ehci_platdata tiny4412_ehci_pdata;
 
-static void __init smdk4x12_ehci_init(void)
+static void __init tiny4412_ehci_init(void)
 {
-	struct s5p_ehci_platdata *pdata = &smdk4x12_ehci_pdata;
+	struct s5p_ehci_platdata *pdata = &tiny4412_ehci_pdata;
 	int err;
 
 	s5p_ehci_set_platdata(pdata);
@@ -1738,11 +939,11 @@ static void __init smdk4x12_ehci_init(void)
 }
 
 /* USB OHCI */
-static struct exynos4_ohci_platdata smdk4x12_ohci_pdata;
+static struct exynos4_ohci_platdata tiny4412_ohci_pdata;
 
-static void __init smdk4x12_ohci_init(void)
+static void __init tiny4412_ohci_init(void)
 {
-	struct exynos4_ohci_platdata *pdata = &smdk4x12_ohci_pdata;
+	struct exynos4_ohci_platdata *pdata = &tiny4412_ohci_pdata;
 
 	exynos4_ohci_set_platdata(pdata);
 }
@@ -1763,15 +964,12 @@ static struct platform_device samsung_device_battery = {
 };
 #endif
 
-static struct platform_device *smdk4x12_devices[] __initdata = {
+static struct platform_device *tiny4412_devices[] __initdata = {
 #ifdef CONFIG_EXYNOS4_DEV_DWMCI
 	&exynos_device_dwmci,
 #endif
 	&s3c_device_hsmmc2,
 	&s3c_device_hsmmc3,
-	&wm8994_fixed_voltage0,
-	&wm8994_fixed_voltage1,
-	&wm8994_fixed_voltage2,
 	&s3c_device_i2c0,
 	&s3c_device_i2c1,
 	&s3c_device_i2c2,
@@ -1865,22 +1063,22 @@ static struct platform_device *smdk4x12_devices[] __initdata = {
 #endif
 };
 
-static void __init smdk4x12_map_io(void)
+static void __init tiny4412_map_io(void)
 {
 	clk_xusbxti.rate = 24000000;
 
 	exynos_init_io(NULL, 0);
 	s3c24xx_init_clocks(clk_xusbxti.rate);
-	s3c24xx_init_uarts(smdk4x12_uartcfgs, ARRAY_SIZE(smdk4x12_uartcfgs));
+	s3c24xx_init_uarts(tiny4412_uartcfgs, ARRAY_SIZE(tiny4412_uartcfgs));
 }
 
-static void __init smdk4x12_reserve(void)
+static void __init tiny4412_reserve(void)
 {
 	// HACK: This reserved memory will be used for FIMC-IS
-	s5p_mfc_reserve_mem(0x58000000, 8 << 20, 0x43000000, 8 << 20);
+	s5p_mfc_reserve_mem(0x43000000, 8<< 20, 0x51000000, 8 << 20);
 }
 
-static void smdk4x12_pmu_wdt_init(void)
+static void tiny4412_pmu_wdt_init(void)
 {
 	unsigned int value;
 
@@ -1894,14 +1092,14 @@ static void smdk4x12_pmu_wdt_init(void)
 	}
 }
 
-static void smdk4x12_rtc_wake_init(void)
+static void tiny4412_rtc_wake_init(void)
 {
 #ifdef CONFIG_PM
 	gic_arch_extn.irq_set_wake = s3c_irq_wake;
 #endif
 }
 
-static struct s3c2410_platform_i2c universal_i2c4_platdata __initdata = {
+static struct s3c2410_platform_i2c tiny4412_i2c4_platdata __initdata = {
 	.frequency	= 300 * 1000,
 	.sda_delay	= 200,
 };
@@ -1913,7 +1111,7 @@ static void __set_flite_camera_config(struct exynos_platform_flite *data,
         data->num_clients = max_cam;
 }
 
-static void __init smdk4x12_set_camera_flite_platdata(void)
+static void __init tiny4412_set_camera_flite_platdata(void)
 {
         int flite0_cam_index = 0;
         int flite1_cam_index = 0;
@@ -1946,11 +1144,11 @@ static int __init tiny4412_setup_uhost(char *str)
 early_param("uhost0", tiny4412_setup_uhost);
 
 #ifdef CONFIG_USB_EXYNOS_SWITCH
-static struct s5p_usbswitch_platdata smdk4x12_usbswitch_pdata;
+static struct s5p_usbswitch_platdata tiny4412_usbswitch_pdata;
 
-static void __init smdk4x12_usbswitch_init(void)
+static void __init tiny4412_usbswitch_init(void)
 {
-	struct s5p_usbswitch_platdata *pdata = &smdk4x12_usbswitch_pdata;
+	struct s5p_usbswitch_platdata *pdata = &tiny4412_usbswitch_pdata;
 	int err;
 
 	pdata->gpio_host_detect = EXYNOS4_GPX3(5); /* low active */
@@ -2122,7 +1320,7 @@ static void initialize_non_prime_clocks(void)
 #endif
 }
 
-static void __init smdk4x12_machine_init(void)
+static void __init tiny4412_machine_init(void)
 {
 #ifdef CONFIG_TOUCHSCREEN_FT5X0X
 	struct s3cfb_lcd *lcd = tiny4412_get_lcd();
@@ -2143,85 +1341,84 @@ static void __init smdk4x12_machine_init(void)
 #endif
 
 	if (samsung_pack() != EXYNOS4412_PACK_SCP) {
-#ifdef CONFIG_REGULATOR_MAX77686
-		max77686_populate_pdata();
-#endif
 	}
 
 	s3c_adc_set_platdata(NULL);
 	s3c_adc_setname("samsung-adc-v4");
 
 	s3c_i2c0_set_platdata(&tiny4412_i2c0_data);
-	i2c_register_board_info(0, smdk4x12_i2c_devs0,
-			ARRAY_SIZE(smdk4x12_i2c_devs0));
+	i2c_register_board_info(0, tiny4412_i2c_devs0,
+			ARRAY_SIZE(tiny4412_i2c_devs0));
 
 	s3c_i2c1_set_platdata(&tiny4412_i2c1_data);
-	i2c_register_board_info(1, smdk4x12_i2c_devs1,
-			ARRAY_SIZE(smdk4x12_i2c_devs1));
+	i2c_register_board_info(1, tiny4412_i2c_devs1,
+			ARRAY_SIZE(tiny4412_i2c_devs1));
 
 	s3c_i2c2_set_platdata(NULL);
-	i2c_register_board_info(2, smdk4x12_i2c_devs2,
-			ARRAY_SIZE(smdk4x12_i2c_devs2));
+	i2c_register_board_info(2, tiny4412_i2c_devs2,
+			ARRAY_SIZE(tiny4412_i2c_devs2));
 
 	s3c_i2c3_set_platdata(&tiny4412_i2c3_data);
-	i2c_register_board_info(3, smdk4x12_i2c_devs3,
-			ARRAY_SIZE(smdk4x12_i2c_devs3));
+	i2c_register_board_info(3, tiny4412_i2c_devs3,
+			ARRAY_SIZE(tiny4412_i2c_devs3));
 
 	s3c_i2c4_set_platdata(NULL);
 
-	smdk4x12_rtc_wake_init();
-	smdk4x12_pmu_wdt_init();
-	smdk4x12_touch_init();
+	tiny4412_rtc_wake_init();
+	tiny4412_pmu_wdt_init();
+	tiny4412_touch_init();
 	tiny4412_wifi_init();
 
 	s3c_i2c7_set_platdata(&tiny4412_i2c7_data);
-	i2c_register_board_info(7, smdk4x12_i2c_devs7,
-			ARRAY_SIZE(smdk4x12_i2c_devs7));
+	i2c_register_board_info(7, tiny4412_i2c_devs7,
+			ARRAY_SIZE(tiny4412_i2c_devs7));
 
-	s3c_hsotg_set_platdata(&smdk4x12_hsotg_pdata);
+	s3c_hsotg_set_platdata(&tiny4412_hsotg_pdata);
 #ifdef CONFIG_USB_EXYNOS_SWITCH
-	smdk4x12_usbswitch_init();
+	tiny4412_usbswitch_init();
 #endif
-	samsung_bl_set(&smdk4x12_bl_gpio_info, &smdk4x12_bl_data);
+	samsung_bl_set(&tiny4412_bl_gpio_info, &tiny4412_bl_data);
 
-	tiny4412_fb_init_pdata(&smdk4x12_lcd0_pdata);
-	s5p_fimd0_set_platdata(&smdk4x12_lcd0_pdata);
+#ifdef CONFIG_FB_S3C
+	tiny4412_fb_init_pdata(&tiny4412_lcd0_pdata);
+	s5p_fimd0_set_platdata(&tiny4412_lcd0_pdata);
+#endif
 #ifdef CONFIG_LCD_LMS501KF03
 	spi_register_board_info(spi_board_info, ARRAY_SIZE(spi_board_info));
 #endif
 
 #ifdef CONFIG_SAMSUNG_DEV_KEYPAD
-	samsung_keypad_set_platdata(&smdk4x12_keypad_data);
+	samsung_keypad_set_platdata(&tiny4412_keypad_data);
 #endif
 
 #ifdef CONFIG_EXYNOS4_DEV_DWMCI
 	exynos_dwmci_set_platdata(&exynos_dwmci_pdata);
 #endif
 
-	s3c_sdhci2_set_platdata(&smdk4x12_hsmmc2_pdata);
-	s3c_sdhci3_set_platdata(&smdk4x12_hsmmc3_pdata);
+	s3c_sdhci2_set_platdata(&tiny4412_hsmmc2_pdata);
+	s3c_sdhci3_set_platdata(&tiny4412_hsmmc3_pdata);
 
 #ifdef CONFIG_ION_EXYNOS
 	exynos_ion_set_platdata();
 #endif
 	s5p_tv_setup();
 	s5p_i2c_hdmiphy_set_platdata(NULL);
-	s5p_hdmi_set_platdata(smdk4x12_i2c_hdmiphy, NULL, 0);
+	s5p_hdmi_set_platdata(tiny4412_i2c_hdmiphy, NULL, 0);
 
 #ifdef CONFIG_VIDEO_EXYNOS_FIMG2D
 	s5p_fimg2d_set_platdata(&fimg2d_data);
 #endif
 #if defined(CONFIG_VIDEO_M5MOLS) || defined(CONFIG_VIDEO_S5K6A3)
-	smdk4x12_camera_init();
+	tiny4412_camera_init();
 #endif
 #ifdef CONFIG_VIDEO_EXYNOS_FIMC_LITE
-	smdk4x12_set_camera_flite_platdata();
+	tiny4412_set_camera_flite_platdata();
 	s3c_set_platdata(&exynos_flite0_default_data,
 			sizeof(exynos_flite0_default_data), &exynos_device_flite0);
 	s3c_set_platdata(&exynos_flite1_default_data,
 			sizeof(exynos_flite1_default_data), &exynos_device_flite1);
 #endif
-	smdk4x12_ehci_init();
+	tiny4412_ehci_init();
 
 #ifdef CONFIG_S3C64XX_DEV_SPI0
 	s3c64xx_spi0_set_platdata(NULL, 0, 1);
@@ -2233,8 +1430,8 @@ static void __init smdk4x12_machine_init(void)
 	s3c64xx_spi2_set_platdata(NULL, 0, 1);
 #endif
 
-	smdk4x12_ohci_init();
-	platform_add_devices(smdk4x12_devices, ARRAY_SIZE(smdk4x12_devices));
+	tiny4412_ohci_init();
+	platform_add_devices(tiny4412_devices, ARRAY_SIZE(tiny4412_devices));
 	if (!uhost0)
 		platform_device_register(&s3c_device_usb_hsotg);
 
@@ -2263,12 +1460,12 @@ MACHINE_START(TINY4412, "TINY4412")
 	/* Maintainer: Changhwan Youn <chaos.youn@samsung.com> */
 	.atag_offset	= 0x100,
 	.init_irq	= exynos4_init_irq,
-	.map_io		= smdk4x12_map_io,
+	.map_io		= tiny4412_map_io,
 	.handle_irq	= gic_handle_irq,
-	.init_machine	= smdk4x12_machine_init,
+	.init_machine	= tiny4412_machine_init,
 	.init_late	= exynos_init_late,
 	.timer		= &exynos4_timer,
 	.restart	= exynos4_restart,
-	.reserve	= &smdk4x12_reserve,
+	.reserve	= &tiny4412_reserve,
 MACHINE_END
 
