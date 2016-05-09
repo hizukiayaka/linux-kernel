@@ -78,6 +78,29 @@
 	};
 };
 
+&ehci {
+	status = "okay";
+	samsung,vbus-gpio = <&gpm2 4 1 3 3>;
+	
+	port@0 {
+		status = "okay";
+	};
+	port@1 {
+		status = "okay";
+	};
+	port@2 {
+		status = "okay";
+	};
+};
+
+&exynos_usbphy {
+	status = "okay";
+};
+
+&hsotg {
+	status = "okay";
+};
+	
 &mshc_0 {
 	pinctrl-0 = <&sd4_clk &sd4_cmd &sd4_bus4 &sd4_bus8>;
 	pinctrl-names = "default";
