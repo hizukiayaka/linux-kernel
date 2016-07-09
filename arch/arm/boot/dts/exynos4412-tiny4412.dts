@@ -161,3 +161,11 @@
 &adc {
 	status = "okay";
 };
+
+&i2c_5 {
+	status = "okay";
+};
+
+&spi_0 {
+	status = "okay";
+};
