@@ -134,6 +134,10 @@ static void exynos_setup_vbus_gpio(struct device *dev)
 				    "ehci_vbus_gpio");
 	if (err)
 		dev_err(dev, "can't request ehci vbus gpio %d", gpio);
+
+	gpio_set_value_cansleep(gpio, 0);
+	msleep(1);
+	gpio_set_value_cansleep(gpio, 1);
 }
 
 static int exynos_ehci_probe(struct platform_device *pdev)
