@@ -157,3 +157,7 @@
 	samsung,pwm-outputs = <0>, <1>;
 	status = "okay";
 };
+
+&adc {
+	status = "okay";
+};
