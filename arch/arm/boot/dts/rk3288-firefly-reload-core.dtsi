@@ -50,14 +50,6 @@
 		reg = <0 0x80000000>;
 	};
 
-	dovdd_1v8: dovdd-1v8-regulator {
-		compatible = "regulator-fixed";
-		regulator-name = "dovdd_1v8";
-		regulator-min-microvolt = <1800000>;
-		regulator-max-microvolt = <1800000>;
-		vin-supply = <&vcc28_dvp>;
-	};
-
 	ext_gmac: external-gmac-clock {
 		compatible = "fixed-clock";
 		#clock-cells = <0>;
@@ -65,14 +57,6 @@
 		clock-output-names = "ext_gmac";
 	};
 
-	vbat_wl: vcc_sys: vsys-regulator {
-		compatible = "regulator-fixed";
-		regulator-name = "vcc_sys";
-		regulator-min-microvolt = <5000000>;
-		regulator-max-microvolt = <5000000>;
-		regulator-always-on;
-		regulator-boot-on;
-	};
 
 	vcc_flash: flash-regulator {
 		compatible = "regulator-fixed";
@@ -81,17 +65,6 @@
 		regulator-max-microvolt = <1800000>;
 		vin-supply = <&vcc_io>;
 	};
-
-	vcc_5v: usb-regulator {
-		compatible = "regulator-fixed";
-		regulator-name = "vcc_5v";
-		regulator-min-microvolt = <5000000>;
-		regulator-max-microvolt = <5000000>;
-		regulator-always-on;
-		regulator-boot-on;
-		vin-supply = <&vcc_sys>;
-	};
-
 };
 
 &cpu0 {
@@ -326,7 +299,7 @@
 &io_domains {
 	status = "okay";
 
-	audio-supply = <&vcca_33>;
+	audio-supply = <&vccio_wl>;
 	bb-supply = <&vcc_io>;
 	dvp-supply = <&dovdd_1v8>;
 	flash0-supply = <&vcc_flash>;
