@@ -200,8 +200,35 @@
 
 	sound {
 		compatible = "simple-audio-card";
-		simple-audio-card,name = "SPDIF";
-		simple-audio-card,dai-link@1 {  /* S/PDIF - S/PDIF */
+		simple-audio-card,name = "rockchip-audio";
+		/*simple-audio-card,hp-det-gpio = <&gpio7 15 GPIO_ACTIVE_HIGH>;*/
+		simple-audio-card,widgets =
+			"Microphone", "Mic Jack",
+			"Headphone", "Headphone Jack";
+                simple-audio-card,routing =
+                        "Headphone Jack", "LOUT2",
+                        "Headphone Jack", "ROUT2",
+                        "LINPUT2", "Mic Jack",
+                        "LINPUT1", "Mic Jack",
+                        "RINPUT1", "Mic Jack";
+
+                simple-audio-card,dai-link@0 {
+                        format = "i2s";
+			bitclock-master = <&link0_codec>;
+			frame-master = <&link0_codec>;
+
+                        cpu {
+				sound-dai = <&i2s>; 
+				system-clock-frequency = <12288000>;
+			};
+
+                        link0_codec: codec {
+				sound-dai = <&codec>;
+				system-clock-frequency = <12288000>;
+			};
+                };
+
+		simple-audio-card,dai-link@1 {
 			cpu { sound-dai = <&spdif>; };
 			codec { sound-dai = <&spdif_out>; };
 		};
@@ -236,14 +263,15 @@
 		AVDD-supply = <&vcca_33>;
 		PVDD-supply = <&vcca_33>;
 		HPVDD-supply = <&vcca_33>;
-		clocks = <&cru HCLK_I2S0>, <&cru SCLK_I2S0>;
-		clock-names = "i2s_hclk", "i2s_clk";
+		clocks = <&cru SCLK_I2S0_OUT>;
 		reg = <0x10>;
+		#sound-dai-cells = <0>;
 	};
 };
 
 &i2s {
 	status = "okay";
+	#sound-dai-cells = <0>;
 };
 
 &sdmmc {
@@ -256,7 +284,6 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&sdmmc_clk>, <&sdmmc_cmd>, <&sdmmc_cd>, <&sdmmc_bus4>;
 	vmmc-supply = <&vcc_sd>;
-	vqmmc-supply = <&vcc_sd>;
 	status = "okay";
 };
 
