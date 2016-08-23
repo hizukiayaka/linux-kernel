@@ -43,7 +43,18 @@
 		regualtor-always-on;
 		regulator-boot-on;
 	};
-
+	
+	fpga_data: spi {
+		compatible = "spi-gpio";
+                #address-cells = <0x1>;
+                ranges;
+		
+		gpio-sck = <&gpio0 28>;
+		gpio-miso = <&gpio3 10>;
+		gpio-mosi = <&gpio3 9>;
+		cs-gpios = <&gpio0 21>;
+		num-chipselects = <1>;
+	};
 };
 
 &am33xx_pinmux {
@@ -98,17 +109,6 @@
 		>;
 	};
 
-	fpga_sdio_pins_default: fpga_sdio_pins_default {
-		pinctrl-single,pins = <
-			0x128 ( PIN_INPUT | MUX_MODE6 ) /* (K17) gmii1_txd0.mmc1_clk */
-			0x124 ( PIN_OUTPUT | MUX_MODE6 ) /* (K16) gmii1_txd1.mmc1_cmd */
-			0x12c ( PIN_INPUT | MUX_MODE4 ) /* (K18) gmii1_txclk.mmc1_dat0 */
-			0x130 ( PIN_INPUT | MUX_MODE4 ) /* (L18) gmii1_rxclk.mmc1_dat1 */
-			0x134 ( PIN_INPUT | MUX_MODE4 ) /* (L17) gmii1_rxd3.mmc1_dat2 */
-			0x138 ( PIN_INPUT | MUX_MODE4 ) /* (L16) gmii1_rxd2.mmc1_dat3 */
-		>;
-	};
-
 	i2c0_pins: pinmux_i2c0_pins {
 		pinctrl-single,pins = <
 			0x188 (PIN_INPUT_PULLUP | MUX_MODE0)	/* i2c0_sda.i2c0_sda */
@@ -118,9 +118,18 @@
 
 	fpga_misc_pins_default: fpga_misc_pins_default {
 		pinctrl-single,pins = <
+			0x12c ( PIN_OUTPUT | MUX_MODE7 ) /* (K18) gmii1_txclk.gpio3[9] GPIO SPI DO */
+			0x130 ( PIN_INPUT | MUX_MODE7 ) /* (L18) gmii1_rxclk.gpio3[10] GPIO SPI DI */
 			0x1a0 ( PIN_OUTPUT | MUX_MODE7 ) /* (B12) mcasp0_aclkr.gpio3[18] */
 			0x1a4 ( PIN_OUTPUT | MUX_MODE7 ) /* (C13) mcasp0_fsr.gpio3[19] */
 			0x1a8 ( PIN_INPUT | MUX_MODE7 ) /* (D13) mcasp0_axr1.gpio3[20] */
+		>;
+	};
+
+	fpga_spi_gpio0_pins_default: fpga_spi_gpio0_pins_default {
+		pinctrl-single,pins = <
+		0x124 ( PIN_INPUT | MUX_MODE7 ) /* (K16) gmii1_txd1.gpio0[21] GPIO SPI CS */
+		0x128 ( PIN_INPUT | MUX_MODE7 ) /* (K17) gmii1_txd0.gpio0[28] GPIO SPI CLK */
 		>;
 	};
 
@@ -130,7 +139,15 @@
 			0x174 (PIN_OUTPUT_PULLDOWN | MUX_MODE0)	/* uart0_txd.uart0_txd */
 		>;
 	};
-
+	
+	fpga_firmware_pins_default: fpga_firmware_pins_default {
+		pinctrl-single,pins = <
+			0x150 ( PIN_INPUT | MUX_MODE0 ) /* (A17) spi0_sclk.spi0_sclk */
+			0x154 ( PIN_INPUT | MUX_MODE0 ) /* (B17) spi0_d0.spi0_d0 */
+			0x158 ( PIN_INPUT | MUX_MODE0 ) /* (B16) spi0_d1.spi0_d1 */
+			0x15c ( PIN_OUTPUT | MUX_MODE0 ) /* (A16) spi0_cs0.spi0_cs0 */
+		>;
+	};
 };
 
 &uart0 {
@@ -339,12 +356,10 @@
 	cd-gpios = <&gpio0 6 GPIO_ACTIVE_LOW>;
 };
 
-&mmc2 {
+fpga_firmware: &spi0 {
 	status = "okay";
-	vmmc-supply = <&v33_reg>;
-	bus-width = <0x04>;
 	pinctrl-names = "default";
-	pinctrl-0 = <&fpga_sdio_pins_default>;
+	pinctrl-0 = <&fpga_firmware_pins_default>;
 };
 
 &sham {
