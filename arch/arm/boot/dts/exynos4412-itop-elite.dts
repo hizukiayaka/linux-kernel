@@ -138,6 +138,37 @@
 		assigned-clocks = <&clock CLK_MOUT_CAM0>;
 		assigned-clock-parents = <&clock CLK_XUSBXTI>;
 	};
+
+	vcc_sys_lcd: sys-lcd {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc_5v";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		gpio = <&gpl0 4 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+	};
+
+	panel: panel@0 {
+		compatible = "chunghwa,claa070wp03xg";
+
+		power-supply = <&vcc_sys_lcd>;
+		enable-gpios = <&gpl0 2 GPIO_ACTIVE_HIGH>;
+		backlight = <&bl>;
+
+		port {
+			lcd_ep: endpoint {
+				remote-endpoint = <&rga_lvds>;
+			};
+		};
+	};
+
+	bl: backlight {
+		compatible = "pwm-backlight";
+		pwms = <&pwm 1 5000000 PWM_POLARITY_INVERTED>;
+		brightness-levels = <0 5 12 16 32 64 128 255>;
+		default-brightness-level = <5>;
+		power-supply = <&vcc_sys_lcd>;
+	};
 };
 
 &adc {
@@ -171,13 +202,28 @@
 	assigned-clock-rates = <0>, <176000000>;
 };
 
+&fimd {
+	pinctrl-0 = <&lcd_clk &lcd_data18>;
+	pinctrl-names = "default";
+	samsung,invert-vclk;
+	status = "okay";
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		port@3 {
+			reg = <3>;
+			rga_lvds: endpoint {
+				remote-endpoint = <&lcd_ep>;
+			};
+		};
+	};
+};
+
 &hsotg {
 	dr_mode = "peripheral";
 	status = "okay";
 };
 
-<<<<<<< HEAD
-=======
 &hdmi {
 	hpd-gpios = <&gpx3 7 GPIO_ACTIVE_HIGH>;
 	pinctrl-names = "default";
@@ -197,7 +243,6 @@
 	status = "okay";
 };
 
->>>>>>> 5d9085d... ARM: dts: add HDMI support for TOPEET iTop Elite board
 &i2c_4 {
 	samsung,i2c-sda-delay = <100>;
 	samsung,i2c-slave-addr = <0x10>;
@@ -251,14 +296,26 @@
 	hdmi_hpd: hdmi-hpd {
 		samsung,pins = "gpx3-7";
 		samsung,pin-pud = <EXYNOS_PIN_PULL_DOWN>;
+	lvds-en {
+		samsung,pins = "gpl1-0";
+		samsung,pin-function = <EXYNOS_PIN_PDN_OUT1>;
+		samsung,pin-pud = <EXYNOS_PIN_PULL_NONE>;
+		samsung,pin-drv = <EXYNOS4_PIN_DRV_LV4>;
+	};
+
+	touch-i2c-en {
+		samsung,pins = "gpl1-2";
+		samsung,pin-function = <EXYNOS_PIN_PDN_OUT1>;
+		samsung,pin-pud = <EXYNOS_PIN_PULL_NONE>;
+		samsung,pin-drv = <EXYNOS4_PIN_DRV_LV4>;
 	};
 };
 
 &pwm {
 	status = "okay";
-	pinctrl-0 = <&pwm0_out>;
+	pinctrl-0 = <&pwm0_out &pwm1_out>;
 	pinctrl-names = "default";
-	samsung,pwm-outputs = <0>;
+	samsung,pwm-outputs = <0>, <1>;
 };
 
 &sdhci_2 {
