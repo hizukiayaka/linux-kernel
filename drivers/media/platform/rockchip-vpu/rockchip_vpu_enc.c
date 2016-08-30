@@ -1330,9 +1330,8 @@ const struct v4l2_ioctl_ops *get_enc_v4l2_ioctl_ops(void)
 static void rockchip_vpu_enc_prepare_run(struct rockchip_vpu_ctx *ctx)
 {
 	struct vb2_v4l2_buffer *vb2_src = to_vb2_v4l2_buffer(&ctx->run.src->vb.vb2_buf);
-	unsigned config_store = vb2_src->config_store;
 
-	v4l2_ctrl_apply_store(&ctx->ctrl_handler, config_store);
+	v4l2_ctrl_apply_request(&ctx->ctrl_handler, vb2_src->request);
 
 	if (ctx->vpu_dst_fmt->fourcc == V4L2_PIX_FMT_VP8) {
 		memcpy(ctx->run.dst->vp8e.header,

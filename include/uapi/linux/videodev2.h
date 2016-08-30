@@ -1475,12 +1475,6 @@ struct v4l2_ext_control {
 		__u8 __user *p_u8;
 		__u16 __user *p_u16;
 		__u32 __user *p_u32;
-		struct v4l2_ctrl_h264_sps __user *p_h264_sps;
-		struct v4l2_ctrl_h264_pps __user *p_h264_pps;
-		struct v4l2_ctrl_h264_scaling_matrix __user *p_h264_scal_mtrx;
-		struct v4l2_ctrl_h264_slice_param __user *p_h264_slice_param;
-		struct v4l2_ctrl_h264_decode_param __user *p_h264_decode_param;
-		struct v4l2_ctrl_vp8_frame_hdr __user *p_vp8_frame_hdr;
 		void __user *ptr;
 	};
 } __attribute__ ((packed));
@@ -1525,13 +1519,6 @@ enum v4l2_ctrl_type {
 	V4L2_CTRL_TYPE_U8	     = 0x0100,
 	V4L2_CTRL_TYPE_U16	     = 0x0101,
 	V4L2_CTRL_TYPE_U32	     = 0x0102,
-	V4L2_CTRL_TYPE_H264_SPS      = 0x0103,
-	V4L2_CTRL_TYPE_H264_PPS      = 0x0104,
-	V4L2_CTRL_TYPE_H264_SCALING_MATRIX = 0x0105,
-	V4L2_CTRL_TYPE_H264_SLICE_PARAM = 0x0106,
-	V4L2_CTRL_TYPE_H264_DECODE_PARAM = 0x0107,
-	V4L2_CTRL_TYPE_VP8_FRAME_HDR	= 0x108,
-
 	V4L2_CTRL_TYPE_PRIVATE       = 0xffff,
 };
 

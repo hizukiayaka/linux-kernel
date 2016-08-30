@@ -152,7 +152,7 @@ static inline const void *get_ctrl_ptr(struct rockchip_vpu_ctx *ctx, unsigned id
 {
 	struct v4l2_ctrl *ctrl = ctx->ctrls[id];
 
-	return ctrl->p_cur.p;
+	return ctrl->p_new.p;
 }
 
 /* Query capabilities of the device */
@@ -786,7 +786,7 @@ static int rockchip_vpu_dec_s_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 
 	case V4L2_CID_MPEG_VIDEO_H264_DECODE_PARAM:
-		if (ctrl->store)
+		if (ctrl->request)
 			break;
 		rockchip_vpu_dec_set_dpb(ctx, ctrl);
 		break;
@@ -1103,22 +1103,22 @@ static void rockchip_vpu_dec_prepare_run(struct rockchip_vpu_ctx *ctx)
 {
 	struct vb2_v4l2_buffer *src = to_vb2_v4l2_buffer(&ctx->run.src->vb.vb2_buf);
 
-	v4l2_ctrl_apply_store(&ctx->ctrl_handler, src->config_store);
+	v4l2_ctrl_apply_request(&ctx->ctrl_handler, src->request);
 
 	if (ctx->vpu_src_fmt->fourcc == V4L2_PIX_FMT_H264_SLICE) {
-		ctx->run.h264d.sps = get_ctrl_ptr(ctx,
-										  ROCKCHIP_VPU_DEC_CTRL_H264_SPS);
-		ctx->run.h264d.pps = get_ctrl_ptr(ctx,
-										  ROCKCHIP_VPU_DEC_CTRL_H264_PPS);
-		ctx->run.h264d.scaling_matrix = get_ctrl_ptr(ctx,
-										ROCKCHIP_VPU_DEC_CTRL_H264_SCALING_MATRIX);
-		ctx->run.h264d.slice_param = get_ctrl_ptr(ctx,
-									 ROCKCHIP_VPU_DEC_CTRL_H264_SLICE_PARAM);
-		ctx->run.h264d.decode_param = get_ctrl_ptr(ctx,
-									  ROCKCHIP_VPU_DEC_CTRL_H264_DECODE_PARAM);
+		ctx->run.h264d.sps = get_ctrl_ptr(ctx, 
+				ROCKCHIP_VPU_DEC_CTRL_H264_SPS);
+		ctx->run.h264d.pps = get_ctrl_ptr(ctx, 
+				ROCKCHIP_VPU_DEC_CTRL_H264_PPS);
+		ctx->run.h264d.scaling_matrix = get_ctrl_ptr(ctx, 
+				ROCKCHIP_VPU_DEC_CTRL_H264_SCALING_MATRIX);
+		ctx->run.h264d.slice_param = get_ctrl_ptr(ctx, 
+				ROCKCHIP_VPU_DEC_CTRL_H264_SLICE_PARAM);
+		ctx->run.h264d.decode_param = get_ctrl_ptr(ctx, 
+				ROCKCHIP_VPU_DEC_CTRL_H264_DECODE_PARAM);
 	} else if (ctx->vpu_src_fmt->fourcc == V4L2_PIX_FMT_VP8_FRAME) {
-		ctx->run.vp8d.frame_hdr = get_ctrl_ptr(ctx,
-											   ROCKCHIP_VPU_DEC_CTRL_VP8_FRAME_HDR);
+		ctx->run.vp8d.frame_hdr = get_ctrl_ptr(ctx, 
+				ROCKCHIP_VPU_DEC_CTRL_VP8_FRAME_HDR);
 	}
 }
 

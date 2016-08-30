@@ -1136,22 +1136,22 @@ void v4l2_ctrl_fill(u32 id, const char **name, enum v4l2_ctrl_type *type,
 		*type = V4L2_CTRL_TYPE_U32;
 		break;
 	case V4L2_CID_MPEG_VIDEO_H264_SPS:
-		*type = V4L2_CTRL_TYPE_H264_SPS;
+		*type = V4L2_CTRL_TYPE_PRIVATE;
 		break;
 	case V4L2_CID_MPEG_VIDEO_H264_PPS:
-		*type = V4L2_CTRL_TYPE_H264_PPS;
+		*type = V4L2_CTRL_TYPE_PRIVATE;
 		break;
 	case V4L2_CID_MPEG_VIDEO_H264_SCALING_MATRIX:
-		*type = V4L2_CTRL_TYPE_H264_SCALING_MATRIX;
+		*type = V4L2_CTRL_TYPE_PRIVATE;
 		break;
 	case V4L2_CID_MPEG_VIDEO_H264_SLICE_PARAM:
-		*type = V4L2_CTRL_TYPE_H264_SLICE_PARAM;
+		*type = V4L2_CTRL_TYPE_PRIVATE;
 		break;
 	case V4L2_CID_MPEG_VIDEO_H264_DECODE_PARAM:
-		*type = V4L2_CTRL_TYPE_H264_DECODE_PARAM;
+		*type = V4L2_CTRL_TYPE_PRIVATE;
 		break;
 	case V4L2_CID_MPEG_VIDEO_VP8_FRAME_HDR:
-		*type = V4L2_CTRL_TYPE_VP8_FRAME_HDR;
+		*type = V4L2_CTRL_TYPE_PRIVATE;
 		break;
 	default:
 		*type = V4L2_CTRL_TYPE_INTEGER;
@@ -1554,14 +1554,6 @@ static int std_validate(const struct v4l2_ctrl *ctrl, u32 idx,
 
 	/* FIXME:just return 0 for now */
 	case V4L2_CTRL_TYPE_PRIVATE:
-		return 0;
-
-	case V4L2_CTRL_TYPE_H264_SPS:
-	case V4L2_CTRL_TYPE_H264_PPS:
-	case V4L2_CTRL_TYPE_H264_SCALING_MATRIX:
-	case V4L2_CTRL_TYPE_H264_SLICE_PARAM:
-	case V4L2_CTRL_TYPE_H264_DECODE_PARAM:
-	case V4L2_CTRL_TYPE_VP8_FRAME_HDR:
 		return 0;
 
 	default:
@@ -2101,24 +2093,6 @@ static struct v4l2_ctrl *v4l2_ctrl_new(struct v4l2_ctrl_handler *hdl,
 		break;
 	case V4L2_CTRL_TYPE_U32:
 		elem_size = sizeof(u32);
-		break;
-	case V4L2_CTRL_TYPE_H264_SPS:
-		elem_size = sizeof(struct v4l2_ctrl_h264_sps);
-		break;
-	case V4L2_CTRL_TYPE_H264_PPS:
-		elem_size = sizeof(struct v4l2_ctrl_h264_pps);
-		break;
-	case V4L2_CTRL_TYPE_H264_SCALING_MATRIX:
-		elem_size = sizeof(struct v4l2_ctrl_h264_scaling_matrix);
-		break;
-	case V4L2_CTRL_TYPE_H264_SLICE_PARAM:
-		elem_size = sizeof(struct v4l2_ctrl_h264_slice_param);
-		break;
-	case V4L2_CTRL_TYPE_H264_DECODE_PARAM:
-		elem_size = sizeof(struct v4l2_ctrl_h264_decode_param);
-		break;
-	case V4L2_CTRL_TYPE_VP8_FRAME_HDR:
-		elem_size = sizeof(struct v4l2_ctrl_vp8_frame_hdr);
 		break;
 	default:
 		if (type < V4L2_CTRL_COMPOUND_TYPES)

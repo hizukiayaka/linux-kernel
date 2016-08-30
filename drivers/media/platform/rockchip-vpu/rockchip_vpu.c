@@ -341,7 +341,7 @@ int rockchip_vpu_ctrls_setup(struct rockchip_vpu_ctx *ctx,
 			cfg.id = controls[i].id;
 			cfg.min = controls[i].minimum;
 			cfg.max = controls[i].maximum;
-			cfg.max_stores = controls[i].max_stores;
+			cfg.max_reqs = controls[i].max_stores;
 			cfg.def = controls[i].default_value;
 			cfg.name = controls[i].name;
 			cfg.type = controls[i].type;
@@ -390,8 +390,6 @@ int rockchip_vpu_ctrls_setup(struct rockchip_vpu_ctx *ctx,
 			ctx->ctrls[i]->flags |= V4L2_CTRL_FLAG_VOLATILE;
 		if (controls[i].is_read_only && ctx->ctrls[i])
 			ctx->ctrls[i]->flags |= V4L2_CTRL_FLAG_READ_ONLY;
-		if (controls[i].can_store && ctx->ctrls[i])
-			ctx->ctrls[i]->flags |= V4L2_CTRL_FLAG_CAN_STORE;
 	}
 
 	v4l2_ctrl_handler_setup(&ctx->ctrl_handler);
