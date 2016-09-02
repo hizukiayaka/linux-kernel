@@ -87,12 +87,15 @@ enum rockchip_vpu_codec_mode {
 	RK3288_VPU_CODEC_H264E	= (1 << 2),
 	RK3288_VPU_CODEC_VP8D	= (1 << 3),
 	RK3288_VPU_CODEC_VP8E	= (1 << 4),
+	RK3288_VPU_CODEC_ENC_JPEG = (1 << 5),
 };
 
 #define ROCKCHIP_VPU_DECODERS	(RK3288_VPU_CODEC_H264D | RK3288_VPU_CODEC_VP8D)
-#define ROCKCHIP_VPU_ENCODERS	(RK3288_VPU_CODEC_H264E | RK3288_VPU_CODEC_VP8E)
+#define ROCKCHIP_VPU_ENCODERS	(RK3288_VPU_CODEC_H264E | RK3288_VPU_CODEC_VP8E | RK3288_VPU_CODEC_ENC_JPEG)
 
-#define RK3288_CODECS		(RK_VPU_CODEC_NONE | RK3288_VPU_CODEC_H264D | RK3288_VPU_CODEC_H264E | RK3288_VPU_CODEC_VP8D | RK3288_VPU_CODEC_VP8E)
+#define RK3288_CODECS		(RK_VPU_CODEC_NONE | RK3288_VPU_CODEC_H264D | \
+		RK3288_VPU_CODEC_H264E | RK3288_VPU_CODEC_VP8D | \
+		RK3288_VPU_CODEC_VP8E | RK3288_VPU_CODEC_ENC_JPEG)
 
 /**
  * enum rockchip_vpu_plane - indices of planes inside a VB2 buffer.
@@ -339,6 +342,7 @@ struct rockchip_vpu_run {
 		struct rockchip_vpu_vp8d_run vp8d;
 		struct rockchip_vpu_h264d_run h264d;
 		struct rockchip_vpu_h264e_run h264e;
+		struct rockchip_vpu_enc_jpeg_run enc_jpeg;
 		/* Other modes will need different data. */
 	};
 };

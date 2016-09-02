@@ -74,6 +74,14 @@ static struct rockchip_vpu_fmt formats[] = {
 		.enc_fmt = ROCKCHIP_VPU_ENC_FMT_YUV420SP,
 	},
 	{
+		.name = "4:2:0 2 plane Y/CbCr",
+		.fourcc = V4L2_PIX_FMT_NV12,
+		.codec_mode = RK_VPU_CODEC_NONE,
+		.num_planes = 1,
+		.depth = { 12 },
+		.enc_fmt = ROCKCHIP_VPU_ENC_FMT_YUV420SP,
+	},
+	{
 		.name = "4:2:2 1 plane YUYV",
 		.fourcc = V4L2_PIX_FMT_YUYV,
 		.codec_mode = RK_VPU_CODEC_NONE,
@@ -100,6 +108,12 @@ static struct rockchip_vpu_fmt formats[] = {
 		.name = "H264 Encoded Stream",
 		.fourcc = V4L2_PIX_FMT_H264,
 		.codec_mode = RK3288_VPU_CODEC_H264E,
+		.num_planes = 1,
+	},
+	{
+		.name = "JPEG Encoded Stream",
+		.fourcc = V4L2_PIX_FMT_JPEG,
+		.codec_mode = RK3288_VPU_CODEC_ENC_JPEG,
 		.num_planes = 1,
 	},
 };
@@ -338,7 +352,7 @@ static inline const void *get_ctrl_ptr(struct rockchip_vpu_ctx *ctx, unsigned id
 {
 	struct v4l2_ctrl *ctrl = ctx->ctrls[id];
 
-	return ctrl->p_cur.p;
+	return ctrl->p_new.p;
 }
 
 static const char *const *rockchip_vpu_enc_get_menu(u32 id)
@@ -571,6 +585,10 @@ static void calculate_plane_sizes(struct rockchip_vpu_fmt *fmt,
 		 */
 		if (i != 0)
 			pix_fmt_mp->plane_fmt[i].sizeimage /= 2;
+	}
+
+	if (fmt->num_planes == 1) {
+		fmt->chroma_offset = w * h;
 	}
 }
 
@@ -908,6 +926,7 @@ static int rockchip_vpu_enc_s_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_PRIVATE_ROCKCHIP_HEADER:
 	case V4L2_CID_PRIVATE_ROCKCHIP_REG_PARAMS:
 	case V4L2_CID_PRIVATE_ROCKCHIP_HW_PARAMS:
+	case V4L2_CID_JPEG_QMATRIX:
 		/* Nothing to do here. The control is used directly. */
 		break;
 	case V4L2_CID_ROCKCHIP_HEADER_SIZE:
@@ -1203,6 +1222,16 @@ static void rockchip_vpu_buf_finish(struct vb2_buffer *vb)
 
 		buf = vb_to_buf(vb);
 		rockchip_vpu_h264e_assemble_bitstream(ctx, buf);
+
+	} else if (vq->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE
+	    && vb->state == VB2_BUF_STATE_DONE
+	    && ctx->vpu_dst_fmt->fourcc == V4L2_PIX_FMT_JPEG) {
+		struct rockchip_vpu_buf *buf;
+		buf = vb_to_buf(vb);
+
+		vb2_set_plane_payload(&buf->vb.vb2_buf, 0,
+				ctx->run.dst->enc_jpeg.encoded_size);
+		vpu_debug(4, "JPEG finish");
 	}
 
 	vpu_debug_leave();
@@ -1370,6 +1399,7 @@ static void rockchip_vpu_enc_prepare_run(struct rockchip_vpu_ctx *ctx)
 		ctx->run.enc_jpeg.header_bytes = *(uint32_t *)get_ctrl_ptr(ctx,
 				ROCKCHIP_VPU_ENC_CTRL_HEADER_SIZE);
 	}
+	
 }
 
 static const struct rockchip_vpu_run_ops rockchip_vpu_enc_run_ops = {

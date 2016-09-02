@@ -29,6 +29,7 @@
 #include <linux/of_platform.h>
 
 #include <linux/dma-iommu.h>
+#include "rk3288_vpu_hw_enc_jpeg.h"
 
 /* Various parameters specific to VP8 encoder. */
 #define VP8_KEY_FRAME_HDR_SIZE                  10
@@ -354,6 +355,15 @@ static const struct rockchip_vpu_codec_ops mode_ops[] = {
 		.run = rk3288_vpu_h264d_run,
 		.done = rockchip_vpu_run_done,
 		.reset = rk3288_vpu_dec_reset,
+	},
+	{
+		.codec_mode = RK3288_VPU_CODEC_ENC_JPEG,
+		.init = rk3288_vpu_enc_jpeg_init,
+		.exit = rk3288_vpu_enc_jpeg_exit,
+		.irq = rk3288_vpu_enc_irq,
+		.run = rk3288_vpu_enc_jpeg_run,
+		.done = rk3288_vpu_enc_jpeg_done,
+		.reset = rk3288_vpu_enc_reset,
 	},
 };
 
