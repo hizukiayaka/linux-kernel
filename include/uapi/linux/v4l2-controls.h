@@ -872,6 +872,7 @@ enum v4l2_jpeg_chroma_subsampling {
 #define	V4L2_CID_JPEG_COMPRESSION_QUALITY	(V4L2_CID_JPEG_CLASS_BASE + 3)
 
 #define	V4L2_CID_JPEG_ACTIVE_MARKER		(V4L2_CID_JPEG_CLASS_BASE + 4)
+#define	V4L2_CID_JPEG_QMATRIX			(V4L2_CID_JPEG_CLASS_BASE + 5)
 #define	V4L2_JPEG_ACTIVE_MARKER_APP0		(1 << 0)
 #define	V4L2_JPEG_ACTIVE_MARKER_APP1		(1 << 1)
 #define	V4L2_JPEG_ACTIVE_MARKER_COM		(1 << 16)
@@ -1213,4 +1214,10 @@ struct v4l2_ctrl_vp8_frame_hdr {
 	__u8 flags;
 };
 
+struct v4l2_ctrl_jpeg_qmatrix {
+	__s32 load_lum_quantiser_matrix;
+	__s32 load_chroma_quantiser_matrix;
+	__u8 lum_quantiser_matrix [64];
+	__u8 chroma_quantiser_matrix [64];
+};
 #endif

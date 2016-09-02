@@ -862,6 +862,7 @@ const char *v4l2_ctrl_get_name(u32 id)
 	case V4L2_CID_JPEG_RESTART_INTERVAL:	return "Restart Interval";
 	case V4L2_CID_JPEG_COMPRESSION_QUALITY:	return "Compression Quality";
 	case V4L2_CID_JPEG_ACTIVE_MARKER:	return "Active Markers";
+	case V4L2_CID_JPEG_QMATRIX:		return "JPEG Qual Matrix";
 
 	/* Image source controls */
 	/* Keep the order of the 'case's the same as in v4l2-controls.h! */
@@ -1153,6 +1154,8 @@ void v4l2_ctrl_fill(u32 id, const char **name, enum v4l2_ctrl_type *type,
 	case V4L2_CID_MPEG_VIDEO_VP8_FRAME_HDR:
 		*type = V4L2_CTRL_TYPE_PRIVATE;
 		break;
+	case V4L2_CID_JPEG_QMATRIX:
+		*type = V4L2_CTRL_TYPE_PRIVATE;
 	default:
 		*type = V4L2_CTRL_TYPE_INTEGER;
 		break;
