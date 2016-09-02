@@ -53,6 +53,7 @@
 #define V4L2_CID_PRIVATE_ROCKCHIP_REG_PARAMS	(V4L2_CID_CUSTOM_BASE + 1)
 #define V4L2_CID_PRIVATE_ROCKCHIP_HW_PARAMS	(V4L2_CID_CUSTOM_BASE + 2)
 #define V4L2_CID_PRIVATE_ROCKCHIP_RET_PARAMS	(V4L2_CID_CUSTOM_BASE + 3)
+#define V4L2_CID_ROCKCHIP_HEADER_SIZE		(V4L2_CID_CUSTOM_BASE + 4)
 
 static struct rockchip_vpu_fmt formats[] = {
 	/* Source formats. */
@@ -132,6 +133,8 @@ enum {
 	ROCKCHIP_VPU_ENC_CTRL_REG_PARAMS,
 	ROCKCHIP_VPU_ENC_CTRL_HW_PARAMS,
 	ROCKCHIP_VPU_ENC_CTRL_RET_PARAMS,
+	ROCKCHIP_VPU_ENC_CTRL_JPEG_QMATRIX,
+	ROCKCHIP_VPU_ENC_CTRL_HEADER_SIZE,
 };
 
 static struct rockchip_vpu_control controls[] = {
@@ -168,6 +171,22 @@ static struct rockchip_vpu_control controls[] = {
 		.is_read_only = true,
 		.max_stores = VIDEO_MAX_FRAME,
 		.elem_size = ROCKCHIP_RET_PARAMS_SIZE,
+	},
+	[ROCKCHIP_VPU_ENC_CTRL_JPEG_QMATRIX] = {
+		.id = V4L2_CID_JPEG_QMATRIX,
+		.type = V4L2_CTRL_TYPE_PRIVATE,
+		.name = "JPEG Qual Matrix",
+		.elem_size = sizeof(struct v4l2_ctrl_jpeg_qmatrix),
+		.max_stores = VIDEO_MAX_FRAME,
+		.can_store = true,
+	},
+	[ROCKCHIP_VPU_ENC_CTRL_HEADER_SIZE] = {
+		.id = V4L2_CID_ROCKCHIP_HEADER_SIZE,
+		.type = V4L2_CTRL_TYPE_PRIVATE,
+		.name = "header length",
+		.elem_size = sizeof(u32 *),
+		.max_stores = VIDEO_MAX_FRAME,
+		.can_store = true,
 	},
 	/* Generic controls. (currently ignored) */
 	{
@@ -886,11 +905,12 @@ static int rockchip_vpu_enc_s_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_MPEG_VIDEO_FORCE_KEY_FRAME:
 		/* Ignore these controls for now. (FIXME?) */
 		break;
-
 	case V4L2_CID_PRIVATE_ROCKCHIP_HEADER:
 	case V4L2_CID_PRIVATE_ROCKCHIP_REG_PARAMS:
 	case V4L2_CID_PRIVATE_ROCKCHIP_HW_PARAMS:
 		/* Nothing to do here. The control is used directly. */
+		break;
+	case V4L2_CID_ROCKCHIP_HEADER_SIZE:
 		break;
 
 	default:
@@ -919,7 +939,6 @@ static int rockchip_vpu_enc_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
 		memcpy(ctrl->p_new.p, ctx->run.priv_dst.cpu,
 			ROCKCHIP_RET_PARAMS_SIZE);
 		break;
-
 	default:
 		v4l2_err(&dev->v4l2_dev, "Invalid control, id=%d, val=%d\n",
 			 ctrl->id, ctrl->val);
@@ -1345,6 +1364,11 @@ static void rockchip_vpu_enc_prepare_run(struct rockchip_vpu_ctx *ctx)
 	} else if (ctx->vpu_dst_fmt->fourcc == V4L2_PIX_FMT_H264) {
 		ctx->run.h264e.reg_params = get_ctrl_ptr(ctx,
 			ROCKCHIP_VPU_ENC_CTRL_REG_PARAMS);
+	} else if (V4L2_PIX_FMT_JPEG == ctx->vpu_dst_fmt->fourcc) {
+		ctx->run.enc_jpeg.qmatrix = get_ctrl_ptr(ctx,
+				ROCKCHIP_VPU_ENC_CTRL_JPEG_QMATRIX);
+		ctx->run.enc_jpeg.header_bytes = *(uint32_t *)get_ctrl_ptr(ctx,
+				ROCKCHIP_VPU_ENC_CTRL_HEADER_SIZE);
 	}
 }
 

@@ -313,6 +313,11 @@ struct rockchip_vpu_h264e_run {
 	u32 hw_write_offset;
 };
 
+struct rockchip_vpu_enc_jpeg_run {
+	const struct v4l2_ctrl_jpeg_qmatrix *qmatrix;
+	uint32_t header_bytes;
+};
+
 /**
  * struct rockchip_vpu_run - per-run data for hardware code.
  * @src:		Source buffer to be processed.
@@ -415,6 +420,7 @@ struct rockchip_vpu_fmt {
 	int num_planes;
 	u8 depth[VIDEO_MAX_PLANES];
 	enum rockchip_vpu_enc_fmt enc_fmt;
+	u32 chroma_offset;
 };
 
 /**

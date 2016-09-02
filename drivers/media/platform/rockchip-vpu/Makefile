@@ -10,3 +10,4 @@ rockchip-vpu-y += rockchip_vpu.o \
 		rk3288_vpu_hw_h264e.o \
 		rk3288_vpu_hw_vp8d.o \
 		rk3288_vpu_hw_vp8e.o \
+		rk3288_vpu_hw_enc_jpeg.o
