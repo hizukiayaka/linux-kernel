@@ -47,6 +47,7 @@
 #define     VEPU_REG_PIC_TYPE(x)		(((x) & 0x3) << 3)
 #define     VEPU_REG_ENC_CTRL_KEYFRAME_BIT	BIT(3)
 #define     VEPU_REG_ENC_CTRL_ENC_MODE_H264	(0x3 << 1)
+#define     VEPU_REG_ENC_CTRL_ENC_MODE_JPEG	(0x2 << 1)
 #define     VEPU_REG_ENC_CTRL_ENC_MODE_VP8	(0x1 << 1)
 #define     VEPU_REG_ENC_CTRL_EN_BIT		BIT(0)
 #define VEPU_REG_IN_IMG_CTRL			0x03c
@@ -85,6 +86,8 @@
 #define    VEPU_REG_ENC_CTRL4_MV_PENALTY_16X8_8X16(x)	((x) << 20)
 #define    VEPU_REG_ENC_CTRL4_MV_PENALTY_8X8(x)		((x) << 10)
 #define    VEPU_REG_ENC_CTRL4_8X4_4X8(x)		((x))
+/* The VEPU_swreg20 in jpeg */
+#define    VEPU_REG_ENC_CTRL4_JPEG_MODE(x)		((x) << 25)
 #define VEPU_REG_ENC_CTRL5			0x054
 #define    VEPU_REG_ENC_CTRL5_MACROBLOCK_PENALTY(x)	((x) << 24)
 #define    VEPU_REG_ENC_CTRL5_COMPLETE_SLICES(x)	((x) << 16)
@@ -143,6 +146,7 @@
 #define VEPU_REG_SECOND_ROI_AREA		0x0f4
 #define VEPU_REG_MVC_CTRL			0x0f8
 #define	VEPU_REG_MVC_CTRL_MV16X16_FAVOR(x)	((x) << 28)
+/* VP8 */
 #define VEPU_REG_VP8_INTRA_PENALTY(i)		(0x100 + ((i) * 0x4))
 #define VEPU_REG_ADDR_VP8_SEG_MAP		0x11c
 #define VEPU_REG_VP8_SEG_QP(i)			(0x120 + ((i) * 0x4))
@@ -153,6 +157,9 @@
 #define VEPU_REG_VP8_CTRL1			0x280
 #define VEPU_REG_VP8_BIT_COST_GOLDEN		0x284
 #define VEPU_REG_VP8_LOOP_FLT_DELTA(i)		(0x288 + ((i) * 0x4))
+/* JPEG */
+#define VEPU_REG_JPEG_LUMA_QUAT_BASE		(0x0100)
+#define VEPU_REG_JPEG_CHROMA_QUAT_BASE		(0x0140)
 
 /* Decoder registers. */
 #define VDPU_REG_INTERRUPT			0x004
