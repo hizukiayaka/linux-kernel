@@ -583,6 +583,29 @@ static const struct panel_desc avic_tm070ddh03 = {
 	},
 };
 
+static const struct drm_display_mode chunghwa_claa070wp03xg_mode = {
+	.clock = 66770,
+	.hdisplay = 800,
+	.hsync_start = 800 + 20,
+	.hsync_end = 800 + 20 + 24,
+	.htotal = 800 + 20 + 24 + 20,
+	.vdisplay = 1280,
+	.vsync_start = 1280 + 4,
+	.vsync_end = 1280 + 4 + 8,
+	.vtotal = 1280 + 4 + 8 + 4,
+	.vrefresh = 60,
+};
+
+static const struct panel_desc chunghwa_claa070wp03xg = {
+	.modes = &chunghwa_claa070wp03xg_mode,
+	.num_modes = 1,
+	.bpc = 6,
+	.size = {
+		.width = 94,
+		.height = 151,
+	},
+};
+
 static const struct drm_display_mode chunghwa_claa101wa01a_mode = {
 	.clock = 72070,
 	.hdisplay = 1366,
@@ -1577,6 +1600,9 @@ static const struct of_device_id platform_of_match[] = {
 	}, {
 		.compatible = "avic,tm070ddh03",
 		.data = &avic_tm070ddh03,
+	}, {
+		.compatible = "chunghwa,claa070wp03xg",
+		.data = &chunghwa_claa070wp03xg,
 	}, {
 		.compatible = "chunghwa,claa101wa01a",
 		.data = &chunghwa_claa101wa01a
