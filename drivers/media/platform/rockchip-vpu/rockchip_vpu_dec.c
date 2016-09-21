@@ -127,7 +127,6 @@ static struct rockchip_vpu_control controls[] = {
 		.name = "H264 Slice Parameters",
 		.max_stores = VIDEO_MAX_FRAME,
 		.elem_size = sizeof(struct v4l2_ctrl_h264_slice_param),
-		.dims = { ROCKCHIP_H264_MAX_SLICES_PER_FRAME, },
 		.can_store = true,
 	},
 	[ROCKCHIP_VPU_DEC_CTRL_H264_DECODE_PARAM] = {
