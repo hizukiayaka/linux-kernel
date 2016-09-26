@@ -112,3 +112,4 @@ all.config
 
 # Kdevelop4
 *.kdev4
+/drivers/gpu/arm/mali400/mali/__malidrv_build_info.c
