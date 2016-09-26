@@ -137,6 +137,10 @@ struct rockchip_vpu_h264e_buf_data {
 	size_t slices_size;
 };
 
+struct rockchip_vpn_enc_jpeg_buf_data {
+	size_t encoded_size;
+};
+
 /**
  * struct rockchip_vpu_buf - Private data related to each VB2 buffer.
  * @vb:			Pointer to related VB2 buffer.
@@ -150,6 +154,7 @@ struct rockchip_vpu_buf {
 	union {
 		struct rockchip_vpu_h264e_buf_data h264e;
 		struct rockchip_vpu_vp8e_buf_data vp8e;
+		struct rockchip_vpn_enc_jpeg_buf_data enc_jpeg;
 	};
 };
 
