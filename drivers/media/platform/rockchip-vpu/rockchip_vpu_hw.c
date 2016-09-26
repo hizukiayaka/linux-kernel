@@ -134,15 +134,27 @@ static void rockchip_vpu_watchdog(struct work_struct *work)
 					struct rockchip_vpu_dev, watchdog_work);
 	struct rockchip_vpu_ctx *ctx = vpu->current_ctx;
 	unsigned long flags;
+	int i;
 
 	spin_lock_irqsave(&vpu->irqlock, flags);
+
+	if (rockchip_vpu_ctx_is_encoder(ctx)) {
+		vpu_err("VEPU dump start at %p", vpu->enc_base);
+		for (i = 0; i < 164; i++) {
+			pr_err("reg %d: %08x\n", i, vepu_read(vpu, i * 4));
+		}
+	} else {
+		vpu_err("VDPU dump start at %p", vpu->dec_base);
+		for (i = 0; i < 108; i++) {
+			pr_err("reg %d: %08x\n", i, vdpu_read(vpu, i * 4));
+		}
+	}
 
 	ctx->hw.codec_ops->reset(ctx);
 
 	spin_unlock_irqrestore(&vpu->irqlock, flags);
 
 	vpu_err("frame processing timed out!\n");
-
 	rockchip_vpu_power_off(vpu);
 	ctx->hw.codec_ops->done(ctx, VB2_BUF_STATE_ERROR);
 }
