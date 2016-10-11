@@ -1134,6 +1134,82 @@
 		};
 	};
 
+	vepu: video-codec@ff9a0000 {
+		compatible = "rockchip,vepu1";
+		reg = <0xff9a0000 0x290>;
+		interrupts = <GIC_SPI 9 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "vepu";
+		clocks = <&cru ACLK_VCODEC>, <&cru HCLK_VCODEC>;
+		clock-names = "aclk", "hclk";
+		assigned-clocks = <&cru ACLK_VCODEC>;
+		assigned-clock-rates = <400000000>;
+		resets = <&cru SRST_VCODEC_AXI>, <&cru SRST_VCODEC_AHB>;
+		reset-names = "video_a", "video_h";
+		power-domains = <&power RK3288_PD_VIDEO>;
+		iommus = <&vpu_mmu>;
+		status = "disabled";
+	};
+
+	vdpu: video-codec@ff9a0400 {
+		compatible = "rockchip,vdpu1";
+		reg = <0xff9a0400 0x1ac>;
+		interrupts = <GIC_SPI 10 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "vdpu";
+		clocks = <&cru ACLK_VCODEC>, <&cru HCLK_VCODEC>;
+		clock-names = "aclk", "hclk";
+		assigned-clocks = <&cru ACLK_VCODEC>;
+		assigned-clock-rates = <400000000>;
+		resets = <&cru SRST_VCODEC_AXI>, <&cru SRST_VCODEC_AHB>;
+		reset-names = "video_a", "video_h";
+		power-domains = <&power RK3288_PD_VIDEO>;
+		iommus = <&vpu_mmu>;
+		status = "disabled";
+	};
+
+	vpu_mmu: iommu@ff9a0800 {
+		compatible = "rockchip,iommu";
+		reg = <0xff9a0800 0x100>;
+		interrupts = <GIC_SPI 11 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "vpu_mmu";
+		power-domains = <&power RK3288_PD_VIDEO>;
+		#iommu-cells = <0>;
+	};
+
+	hevc: video-codec@ff9c0000 {
+		compatible = "rockchip,hevc-decoder";
+		reg = <0xff9c0000 0x400>;
+		reg-names = "hevc-reg";
+		interrupts = <GIC_SPI 12 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "vdpu";
+		clocks = <&cru ACLK_HEVC>, <&cru HCLK_HEVC>,
+			<&cru SCLK_HEVC_CORE>,
+			<&cru SCLK_HEVC_CABAC>;
+		clock-names = "aclk", "hclk", "core", "cabac";
+		/*
+		 * The 4K hevc would also work well with 500/125/300/300,
+		 * no more err irq and reset request.
+		 */
+		assigned-clocks = <&cru ACLK_HEVC>, <&cru HCLK_HEVC>,
+				  <&cru SCLK_HEVC_CORE>,
+				  <&cru SCLK_HEVC_CABAC>;
+		assigned-clock-rates = <400000000>, <100000000>,
+				       <300000000>, <300000000>;
+		resets = <&cru SRST_HEVC>;
+		reset-names = "video";
+		power-domains = <&power RK3288_PD_HEVC>;	
+		iommus = <&hevc_mmu>;
+		status = "disabled";
+	};
+
+	hevc_mmu: iommu@ff9c0440 {
+		compatible = "rockchip,iommu";
+		reg = <0xff9c0440 0x40>, <0xff9c0480 0x40>;
+		interrupts = <GIC_SPI 111 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "hevc_mmu";
+		power-domains = <&power RK3288_PD_HEVC>;
+		#iommu-cells = <0>;
+	};
+
 	gpu: gpu@ffa30000 {
                 compatible = "arm,malit764", "arm,malit76x", "arm,malit7xx",
                         "arm,mali-midgard";
