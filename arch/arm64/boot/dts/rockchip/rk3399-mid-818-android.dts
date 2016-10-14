@@ -521,7 +521,7 @@
 	cap-sd-highspeed;
 	disable-wp;
 	num-slots = <1>;
-	sd-uhs-sdr104;
+	//sd-uhs-sdr104;
 	vqmmc-supply = <&vcc_sd>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&sdmmc_clk &sdmmc_cmd &sdmmc_cd &sdmmc_bus4>;
@@ -1187,7 +1187,7 @@
 &cdn_dp_fb {
 	status = "okay";
 	extcon = <&fusb0>;
-	phys = <&tcphy0 0>;
+	phys = <&tcphy0_dp>;
 	dp_vop_sel = <DISPLAY_SOURCE_LCDC1>;
 };
 

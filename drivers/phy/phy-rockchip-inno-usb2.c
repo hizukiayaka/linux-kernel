@@ -81,6 +81,7 @@ enum usb_chg_state {
 static const unsigned int rockchip_usb2phy_extcon_cable[] = {
 	EXTCON_USB,
 	EXTCON_USB_HOST,
+	EXTCON_USB_VBUS_EN,
 	EXTCON_CHG_USB_SDP,
 	EXTCON_CHG_USB_CDP,
 	EXTCON_CHG_USB_DCP,
@@ -139,6 +140,7 @@ struct rockchip_chg_det_reg {
  * @idrise_det_clr: id rise detection clear register.
  * @utmi_avalid: utmi vbus avalid status register.
  * @utmi_bvalid: utmi vbus bvalid status register.
+ * @utmi_iddig: otg port id pin status register.
  * @utmi_ls: utmi linestate state register.
  * @utmi_hstdet: utmi host disconnect register.
  */
@@ -158,6 +160,7 @@ struct rockchip_usb2phy_port_cfg {
 	struct usb2phy_reg	idrise_det_clr;
 	struct usb2phy_reg	utmi_avalid;
 	struct usb2phy_reg	utmi_bvalid;
+	struct usb2phy_reg	utmi_iddig;
 	struct usb2phy_reg	utmi_ls;
 	struct usb2phy_reg	utmi_hstdet;
 };
@@ -233,6 +236,7 @@ struct rockchip_usb2phy_port {
  * @chg_type: USB charger types.
  * @dcd_retries: The retry count used to track Data contact
  *		 detection process.
+ * @edev_self: represent the source of extcon.
  * @edev: extcon device for notification registration
  * @phy_cfg: phy register configuration, assigned by driver data.
  * @ports: phy port instance.
@@ -1008,13 +1012,16 @@ static irqreturn_t rockchip_usb2phy_id_irq(int irq, void *data)
 		property_enable(rphy, &rport->port_cfg->idfall_det_clr,
 				true);
 		extcon_set_state(rphy->edev, EXTCON_USB_HOST, true);
+		extcon_set_state(rphy->edev, EXTCON_USB_VBUS_EN, true);
 	} else if (property_enabled(rphy, &rport->port_cfg->idrise_det_st)) {
 		property_enable(rphy, &rport->port_cfg->idrise_det_clr,
 				true);
 		extcon_set_state(rphy->edev, EXTCON_USB_HOST, false);
+		extcon_set_state(rphy->edev, EXTCON_USB_VBUS_EN, false);
 	}
 
 	extcon_sync(rphy->edev, EXTCON_USB_HOST);
+	extcon_sync(rphy->edev, EXTCON_USB_VBUS_EN);
 
 	mutex_unlock(&rport->mutex);
 
@@ -1068,6 +1075,7 @@ static int rockchip_usb2phy_otg_port_init(struct rockchip_usb2phy *rphy,
 					  struct device_node *child_np)
 {
 	int ret;
+	int iddig;
 
 	rport->port_id = USB2PHY_PORT_OTG;
 	rport->port_cfg = &rphy->phy_cfg->port_cfgs[USB2PHY_PORT_OTG];
@@ -1125,6 +1133,16 @@ static int rockchip_usb2phy_otg_port_init(struct rockchip_usb2phy *rphy,
 		if (ret) {
 			dev_err(rphy->dev, "failed to request otg-id irq handle\n");
 			return ret;
+		}
+
+		iddig = property_enabled(rphy, &rport->port_cfg->utmi_iddig);
+		if (!iddig) {
+			extcon_set_state(rphy->edev, EXTCON_USB, false);
+			extcon_set_state(rphy->edev, EXTCON_USB_HOST, true);
+			extcon_set_state(rphy->edev, EXTCON_USB_VBUS_EN, true);
+		} else {
+			extcon_set_state(rphy->edev, EXTCON_USB_HOST, false);
+			extcon_set_state(rphy->edev, EXTCON_USB_VBUS_EN, false);
 		}
 	}
 
@@ -1335,6 +1353,7 @@ static const struct rockchip_usb2phy_cfg rk3399_phy_cfgs[] = {
 				.idrise_det_clr	= { 0xe3d0, 4, 4, 0, 1 },
 				.utmi_avalid	= { 0xe2ac, 7, 7, 0, 1 },
 				.utmi_bvalid	= { 0xe2ac, 12, 12, 0, 1 },
+				.utmi_iddig	= { 0xe2ac, 8, 8, 0, 1 },
 			},
 			[USB2PHY_PORT_HOST] = {
 				.phy_sus	= { 0xe458, 1, 0, 0x2, 0x1 },
@@ -1376,6 +1395,7 @@ static const struct rockchip_usb2phy_cfg rk3399_phy_cfgs[] = {
 				.idrise_det_clr	= { 0xe3d0, 9, 9, 0, 1 },
 				.utmi_avalid	= { 0xe2ac, 10, 10, 0, 1 },
 				.utmi_bvalid    = { 0xe2ac, 16, 16, 0, 1 },
+				.utmi_iddig	= { 0xe2ac, 11, 11, 0, 1 },
 			},
 			[USB2PHY_PORT_HOST] = {
 				.phy_sus	= { 0xe468, 1, 0, 0x2, 0x1 },
