@@ -30,7 +30,8 @@
 #include <linux/fs.h>
 #include <linux/version.h>
 #include <linux/dma-mapping.h>
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0))
+#if ((LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)) && \
+		(LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)))
 	#include <linux/dma-attrs.h>
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)  */
 #ifdef CONFIG_DMA_SHARED_BUFFER
@@ -705,8 +706,8 @@ static struct kbase_va_region *kbase_mem_from_user_buffer(
 	/* We can't really store the page list because that would involve */
 	/* keeping the pages pinned - instead we pin/unpin around the job */
 	/* (as part of the external resources handling code) */
-	faulted_pages = get_user_pages(current, current->mm, address, *va_pages,
-			reg->flags & KBASE_REG_GPU_WR, 0, NULL, NULL);
+	faulted_pages = get_user_pages(address, *va_pages,
+			reg->flags & KBASE_REG_GPU_WR, NULL, NULL);
 	up_read(&current->mm->mmap_sem);
 
 	if (faulted_pages != *va_pages)
@@ -2119,7 +2120,11 @@ void *kbase_va_alloc(struct kbase_context *kctx, u32 size, struct kbase_hwc_dma_
 	struct kbase_va_region *reg;
 	phys_addr_t *page_array;
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0))
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0))
 	DEFINE_DMA_ATTRS(attrs);
+#else
+	unsigned long attrs;
+#endif
 #endif
 
 	u32 pages = ((size - 1) >> PAGE_SHIFT) + 1;
@@ -2135,8 +2140,13 @@ void *kbase_va_alloc(struct kbase_context *kctx, u32 size, struct kbase_hwc_dma_
 
 	/* All the alloc calls return zeroed memory */
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0))
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0))
 	dma_set_attr(DMA_ATTR_WRITE_COMBINE, &attrs);
 	va = dma_alloc_attrs(kctx->kbdev->dev, size, &dma_pa, GFP_KERNEL, &attrs);
+#else
+	attrs = DMA_ATTR_WRITE_COMBINE;
+	va = dma_alloc_attrs(kctx->kbdev->dev, size, &dma_pa, GFP_KERNEL, attrs);
+#endif
 #else
 	va = dma_alloc_writecombine(kctx->kbdev->dev, size, &dma_pa, GFP_KERNEL);
 #endif
@@ -2184,7 +2194,11 @@ no_alloc:
 	kfree(reg);
 no_reg:
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0))
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0))
 	dma_free_attrs(kctx->kbdev->dev, size, va, dma_pa, &attrs);
+#else
+	dma_free_attrs(kctx->kbdev->dev, size, va, dma_pa, attrs);
+#endif
 #else
 	dma_free_writecombine(kctx->kbdev->dev, size, va, dma_pa);
 #endif
@@ -2198,7 +2212,11 @@ void kbase_va_free(struct kbase_context *kctx, struct kbase_hwc_dma_mapping *han
 	struct kbase_va_region *reg;
 	int err;
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0))
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0))
 	DEFINE_DMA_ATTRS(attrs);
+#else
+	unsigned long attrs;
+#endif
 #endif
 
 	KBASE_DEBUG_ASSERT(kctx != NULL);
@@ -2216,9 +2234,15 @@ void kbase_va_free(struct kbase_context *kctx, struct kbase_hwc_dma_mapping *han
 	kfree(reg);
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0))
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0))
 	dma_set_attr(DMA_ATTR_WRITE_COMBINE, &attrs);
 	dma_free_attrs(kctx->kbdev->dev, handle->size,
 			handle->cpu_va, handle->dma_pa, &attrs);
+#else
+	attrs = DMA_ATTR_WRITE_COMBINE;
+	dma_free_attrs(kctx->kbdev->dev, handle->size,
+			handle->cpu_va, handle->dma_pa, attrs);
+#endif
 #else
 	dma_free_writecombine(kctx->kbdev->dev, handle->size,
 				handle->cpu_va, handle->dma_pa);
