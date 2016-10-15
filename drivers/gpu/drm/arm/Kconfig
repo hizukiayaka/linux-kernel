@@ -40,3 +40,7 @@ config DRM_MALI_DISPLAY
 	  of the hardware.
 
 	  If compiled as a module it will be called mali-dp.
+
+menu "ARM GPU Configuration"
+source "drivers/gpu/drm/arm/midgard/Kconfig"
+endmenu
