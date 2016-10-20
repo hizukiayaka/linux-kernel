@@ -1079,6 +1079,11 @@
 				};
 			};
 		};
+
+		i2c-bus {
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
 	};
 
 	hdmi: hdmi@ff980000 {
