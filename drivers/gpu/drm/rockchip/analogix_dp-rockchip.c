@@ -17,6 +17,7 @@
 #include <linux/of_device.h>
 #include <linux/of_graph.h>
 #include <linux/regmap.h>
+#include <linux/regulator/consumer.h>
 #include <linux/reset.h>
 #include <linux/clk.h>
 
@@ -70,6 +71,7 @@ struct rockchip_dp_device {
 	struct clk               *grfclk;
 	struct regmap            *grf;
 	struct reset_control     *rst;
+	struct regulator_bulk_data supplies[2];
 
 	struct work_struct	 psr_work;
 	spinlock_t		 psr_lock;
@@ -146,6 +148,13 @@ static int rockchip_dp_poweron(struct analogix_dp_plat_data *plat_data)
 
 	cancel_work_sync(&dp->psr_work);
 
+	ret = regulator_bulk_enable(ARRAY_SIZE(dp->supplies),
+			dp->supplies);
+	if (ret) {
+		dev_err(dp->dev, "failed to enable vdd supply %d\n", ret);
+		return ret;
+	}
+
 	ret = clk_prepare_enable(dp->pclk);
 	if (ret < 0) {
 		dev_err(dp->dev, "failed to enable pclk %d\n", ret);
@@ -167,6 +176,9 @@ static int rockchip_dp_powerdown(struct analogix_dp_plat_data *plat_data)
 	struct rockchip_dp_device *dp = to_dp(plat_data);
 
 	clk_disable_unprepare(dp->pclk);
+
+	regulator_bulk_disable(ARRAY_SIZE(dp->supplies),
+			dp->supplies);
 
 	return 0;
 }
@@ -321,6 +333,19 @@ static int rockchip_dp_init(struct rockchip_dp_device *dp)
 	if (IS_ERR(dp->rst)) {
 		dev_err(dev, "failed to get dp reset control\n");
 		return PTR_ERR(dp->rst);
+	}
+
+	dp->supplies[0].supply = "vcc";
+	dp->supplies[1].supply = "vccio";
+	ret = devm_regulator_bulk_get(dev, ARRAY_SIZE(dp->supplies),
+			dp->supplies);
+	if (ret < 0) {
+		dev_err(dev, "failed to get regulators: %d\n", ret);
+	}
+	ret = regulator_bulk_enable(ARRAY_SIZE(dp->supplies),
+			dp->supplies);
+	if (ret < 0) {
+		dev_err(dev, "failed to enable regulators: %d\n", ret);
 	}
 
 	ret = clk_prepare_enable(dp->pclk);
