@@ -87,6 +87,7 @@ struct panel_simple {
 	struct i2c_adapter *ddc;
 
 	struct gpio_desc *enable_gpio;
+	struct gpio_desc *reset_gpio;
 };
 
 static inline struct panel_simple *to_panel_simple(struct drm_panel *panel)
@@ -190,6 +191,9 @@ static int panel_simple_unprepare(struct drm_panel *panel)
 	if (p->enable_gpio)
 		gpiod_set_value_cansleep(p->enable_gpio, 0);
 
+	if (p->reset_gpio)
+		gpiod_set_value_cansleep(p->reset_gpio, 1);
+
 	regulator_disable(p->supply);
 
 	if (p->desc->delay.unprepare)
@@ -216,6 +220,9 @@ static int panel_simple_prepare(struct drm_panel *panel)
 
 	if (p->enable_gpio)
 		gpiod_set_value_cansleep(p->enable_gpio, 1);
+
+	if (p->reset_gpio)
+		gpiod_set_value_cansleep(p->reset_gpio, 0);
 
 	if (p->desc->delay.prepare)
 		msleep(p->desc->delay.prepare);
@@ -315,6 +322,14 @@ static int panel_simple_probe(struct device *dev, const struct panel_desc *desc)
 						     GPIOD_OUT_LOW);
 	if (IS_ERR(panel->enable_gpio)) {
 		err = PTR_ERR(panel->enable_gpio);
+		dev_err(dev, "failed to request GPIO: %d\n", err);
+		return err;
+	}
+
+	panel->reset_gpio = devm_gpiod_get_optional(dev, "reset",
+						     GPIOD_OUT_HIGH);
+	if (IS_ERR(panel->reset_gpio)) {
+		err = PTR_ERR(panel->reset_gpio);
 		dev_err(dev, "failed to request GPIO: %d\n", err);
 		return err;
 	}
