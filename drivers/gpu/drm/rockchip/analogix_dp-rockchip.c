@@ -17,6 +17,7 @@
 #include <linux/of_device.h>
 #include <linux/of_graph.h>
 #include <linux/regmap.h>
+#include <linux/regulator/consumer.h>
 #include <linux/reset.h>
 #include <linux/clk.h>
 
@@ -70,6 +71,8 @@ struct rockchip_dp_device {
 	struct clk               *grfclk;
 	struct regmap            *grf;
 	struct reset_control     *rst;
+	struct regulator         *vcc_supply;
+	struct regulator         *vccio_supply;
 
 	struct work_struct	 psr_work;
 	spinlock_t		 psr_lock;
@@ -146,6 +149,24 @@ static int rockchip_dp_poweron(struct analogix_dp_plat_data *plat_data)
 
 	cancel_work_sync(&dp->psr_work);
 
+	if (!IS_ERR(dp->vcc_supply)) {
+		ret = regulator_enable(dp->vcc_supply);
+		if (ret) {
+			dev_err(dp->dev,
+				"failed to enable vcc regulator: %d\n", ret);
+			return ret;
+		}
+	}
+
+	if (!IS_ERR(dp->vccio_supply)) {
+		ret = regulator_enable(dp->vccio_supply);
+		if (ret) {
+			dev_err(dp->dev,
+				"failed to enable vccio regulator: %d\n", ret);
+			return ret;
+		}
+	}
+
 	ret = clk_prepare_enable(dp->pclk);
 	if (ret < 0) {
 		dev_err(dp->dev, "failed to enable pclk %d\n", ret);
@@ -167,6 +188,11 @@ static int rockchip_dp_powerdown(struct analogix_dp_plat_data *plat_data)
 	struct rockchip_dp_device *dp = to_dp(plat_data);
 
 	clk_disable_unprepare(dp->pclk);
+
+	if (!IS_ERR(dp->vccio_supply))
+		regulator_disable(dp->vccio_supply);
+	if (!IS_ERR(dp->vcc_supply))
+		regulator_disable(dp->vcc_supply);
 
 	return 0;
 }
@@ -321,6 +347,32 @@ static int rockchip_dp_init(struct rockchip_dp_device *dp)
 	if (IS_ERR(dp->rst)) {
 		dev_err(dev, "failed to get dp reset control\n");
 		return PTR_ERR(dp->rst);
+	}
+
+	dp->vcc_supply = devm_regulator_get_optional(dev, "vcc");
+	dp->vccio_supply = devm_regulator_get_optional(dev, "vccio");
+
+	if (IS_ERR(dp->vcc_supply)) {
+		dev_err(dev, "failed to get vcc regulator: %ld\n",
+			PTR_ERR(dp->vcc_supply));
+	} else {
+		ret = regulator_enable(dp->vcc_supply);
+		if (ret) {
+			dev_err(dev,
+				"failed to enable vcc regulator: %d\n", ret);
+			return ret;
+		}
+	}
+	if (IS_ERR(dp->vccio_supply)) {
+		dev_err(dev, "failed to get vccio regulator: %ld\n",
+			PTR_ERR(dp->vccio_supply));
+	} else {
+		ret = regulator_enable(dp->vccio_supply);
+		if (ret) {
+			dev_err(dev,
+				"failed to enable vccio regulator: %d\n", ret);
+			return ret;
+		}
 	}
 
 	ret = clk_prepare_enable(dp->pclk);
