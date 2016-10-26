@@ -65,6 +65,10 @@
 	};
 };
 
+&backlight {
+	power-supply = <&vcc_lcd>;
+};
+
 &i2c0 {
 	clock-frequency = <400000>;
 
@@ -204,6 +208,11 @@
 			};
 		};
 	};
+};
+
+&gpu {
+	mali-supply = <&vdd_gpu>;
+	status = "okay";
 };
 
 &panel {
