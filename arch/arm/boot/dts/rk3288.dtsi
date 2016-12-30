@@ -659,6 +659,7 @@
 		clocks = <&cru PCLK_PWM>;
 		clock-names = "pwm";
 		status = "disabled";
+		rockchip,grf = <&grf>;
 	};
 
 	pwm2: pwm@ff680020 {
