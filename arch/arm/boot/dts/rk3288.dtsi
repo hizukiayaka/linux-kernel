@@ -538,6 +538,7 @@
 		pinctrl-2 = <&otp_gpio>;
 		#thermal-sensor-cells = <1>;
 		rockchip,hw-tshut-temp = <95000>;
+		rockchip,grf = <&grf>;
 		status = "disabled";
 	};
 
