@@ -53,3 +53,7 @@ to brightness information.
     pixfmt-nv16m
     pixfmt-nv24
     pixfmt-m420
+    pixfmt-p010
+    pixfmt-p010m
+    pixfmt-p016
+    pixfmt-p016m
