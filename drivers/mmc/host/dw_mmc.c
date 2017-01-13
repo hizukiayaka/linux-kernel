@@ -1149,7 +1149,8 @@ static void mci_send_cmd(struct dw_mci_slot *slot, u32 cmd, u32 arg)
 		cmd, arg, cmd_status);
 }
 
-static void dw_mci_setup_bus(struct dw_mci_slot *slot, bool force_clkinit)
+static void dw_mci_setup_bus(struct dw_mci_slot *slot,
+			     bool force_clkinit, bool pm_context)
 {
 	struct dw_mci *host = slot->host;
 	unsigned int clock = slot->clock;
@@ -1178,11 +1179,13 @@ static void dw_mci_setup_bus(struct dw_mci_slot *slot, bool force_clkinit)
 		if ((clock != slot->__clk_old &&
 			!test_bit(DW_MMC_CARD_NEEDS_POLL, &slot->flags)) ||
 			force_clkinit) {
-			dev_info(&slot->mmc->class_dev,
-				 "Bus speed (slot %d) = %dHz (slot req %dHz, actual %dHZ div = %d)\n",
-				 slot->id, host->bus_hz, clock,
-				 div ? ((host->bus_hz / div) >> 1) :
-				 host->bus_hz, div);
+			/* Silent the verbose log if calling from PM context */
+			if (!pm_context)
+				dev_info(&slot->mmc->class_dev,
+					 "Bus speed (slot %d) = %dHz (slot req %dHz, actual %dHZ div = %d)\n",
+					 slot->id, host->bus_hz, clock,
+					 div ? ((host->bus_hz / div) >> 1) :
+					 host->bus_hz, div);
 
 			/*
 			 * If card is polling, display the message only
@@ -1430,12 +1433,12 @@ static void dw_mci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 		}
 
 		/* Adjust clock / bus width after power is up */
-		dw_mci_setup_bus(slot, false);
+		dw_mci_setup_bus(slot, false, false);
 
 		break;
 	case MMC_POWER_OFF:
 		/* Turn clock off before power goes down */
-		dw_mci_setup_bus(slot, false);
+		dw_mci_setup_bus(slot, false, false);
 
 		if (!IS_ERR(mmc->supply.vmmc))
 			mmc_regulator_set_ocr(mmc, mmc->supply.vmmc, 0);
@@ -3355,7 +3358,7 @@ int dw_mci_runtime_resume(struct device *dev)
 			continue;
 		if (slot->mmc->pm_flags & MMC_PM_KEEP_POWER) {
 			dw_mci_set_ios(slot->mmc, &slot->mmc->ios);
-			dw_mci_setup_bus(slot, true);
+			dw_mci_setup_bus(slot, true, true);
 		}
 	}
 
