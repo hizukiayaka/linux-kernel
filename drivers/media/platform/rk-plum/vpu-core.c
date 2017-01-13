@@ -93,7 +93,8 @@ static int vpu_attach_iommu(struct vpu_dev *vpu)
 	/* Create a device group and add the device to it. */
 	group = iommu_group_alloc();
 	if (IS_ERR(group)) {
-		dev_err(&vpu->plat_dev->dev, "failed to allocate IOMMU group\n");
+		dev_err(&vpu->plat_dev->dev,
+				"failed to allocate IOMMU group\n");
 		return PTR_ERR(group);
 	}
 
@@ -101,7 +102,8 @@ static int vpu_attach_iommu(struct vpu_dev *vpu)
 	iommu_group_put(group);
 
 	if (ret < 0) {
-		dev_err(&vpu->plat_dev->dev, "failed to add device to IOMMU group\n");
+		dev_err(&vpu->plat_dev->dev,
+				"failed to add device to IOMMU group\n");
 		return ret;
 	}
 
@@ -111,7 +113,8 @@ static int vpu_attach_iommu(struct vpu_dev *vpu)
 	 */
 	mapping = arm_iommu_create_mapping(&platform_bus_type, SZ_1G, SZ_2G);
 	if (IS_ERR(mapping)) {
-		dev_err(&vpu->plat_dev->dev, "failed to create ARM IOMMU mapping\n");
+		dev_err(&vpu->plat_dev->dev,
+				"failed to create ARM IOMMU mapping\n");
 		ret = PTR_ERR(mapping);
 		goto error;
 	}
@@ -121,7 +124,8 @@ static int vpu_attach_iommu(struct vpu_dev *vpu)
 	/* Attach the ARM VA mapping to the device. */
 	ret = arm_iommu_attach_device(&vpu->plat_dev->dev, mapping);
 	if (ret < 0) {
-		dev_err(&vpu->plat_dev->dev, "failed to attach device to VA mapping\n");
+		dev_err(&vpu->plat_dev->dev,
+				"failed to attach device to VA mapping\n");
 		goto error;
 	}
 
@@ -137,7 +141,6 @@ static void *vpu_get_drv_data(struct platform_device *pdev);
 static int rockchip_vpu_probe(struct platform_device *pdev)
 {
 	struct vpu_dev *vpu;
-	struct resource *res;
 	int ret;
 
 	vpu = devm_kzalloc(&pdev->dev, sizeof(*vpu), GFP_KERNEL);
@@ -152,35 +155,13 @@ static int rockchip_vpu_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	atomic_set(&vpu->num_instances, 0);
 	mutex_init(&vpu->dev_mutex);
-
-	res = platform_get_resource_byname(pdev, IORESOURCE_MEM,
-			"vepu-reg");
-	vpu->vepu_res = res;
-	if (IS_ERR(vpu->vepu_res))
-		return PTR_ERR(vpu->vepu_res);
-	vpu->vepu_base = devm_ioremap_resource(&pdev->dev, vpu->vepu_res);
-	if (!vpu->vepu_base) { 
-		ret = -ENOMEM;
-		goto v4l2_dev_unreg;
-	}
-
-	res = platform_get_resource_byname(pdev, IORESOURCE_MEM,
-			"vdpu-reg");
-	vpu->vdpu_res = res;
-	if (IS_ERR(vpu->vdpu_res))
-		return PTR_ERR(vpu->vdpu_res);
-	vpu->vdpu_base = devm_ioremap_resource(&pdev->dev, vpu->vdpu_res);
-	if (!vpu->vdpu_base) { 
-		ret = -ENOMEM;
-		goto v4l2_dev_unreg;
-	}
 
 	vpu_hw_init_ops(vpu);
 
-	/* Clock initilization */
-	vpu_hw_probe(vpu);
+	/* IP registers range and clock initilization */
+	if (vpu_hw_probe(vpu))
+		goto v4l2_dev_unreg;
 
 	vpu_attach_iommu(vpu);
 
@@ -215,9 +196,8 @@ static int rockchip_vpu_remove(struct platform_device *pdev)
 	v4l2_info(&vpu->v4l2_dev, "Removing " VPU_MODULE_NAME);
 
 	v4l2_m2m_release(vpu->m2m_dev);
-	video_unregister_device(&vpu->hevc_vfd);
-	video_unregister_device(&vpu->vepu_vfd);
-	video_unregister_device(&vpu->vdpu_vfd);
+	if (vpu->vfd)
+		video_unregister_device(vpu->vfd);
 
 	vpu_hw_remove(vpu);
 	vpu_runtime_put(pdev);
@@ -226,15 +206,24 @@ static int rockchip_vpu_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static const struct vpu_drvdata vpu_drvdata_rk3288 = {
-	.version	= VPU_VERSION_RK3288,
-	.version_bit	= VPU_RK3288_BIT,
+static const struct vpu_drvdata vpu_drvdata_vepu120 = {
+	.version	= VPU_ENC_VERSION_120,
+	.version_bit	= VPU_V120_BIT,
+};
+
+static const struct vpu_drvdata vpu_drvdata_vdpu120 = {
+	.version	= VPU_DEC_VERSION_120,
+	.version_bit	= VPU_V120_BIT,
 };
 
 static const struct of_device_id rockchip_vpu_of_match[] = {
 	{ 
-		.compatible = "rockchip,rk3288-vpu",
-		.data = &vpu_drvdata_rk3288,
+		.compatible = "rockchip,vepu1",
+		.data = &vpu_drvdata_vdpu120,
+	},
+	{ 
+		.compatible = "rockchip,vdpu1",
+		.data = &vpu_drvdata_vdpu120,
 	},
 	{ /* sentinel */ },
 };

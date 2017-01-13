@@ -31,11 +31,13 @@
 struct vpu_hw_ops {
 	int (*probe)(struct vpu_dev *vpu);
 	int (*remove)(struct vpu_dev *vpu);
+	int (*reset)(struct vpu_dev *vpu);
 };
 
 void vpu_hw_init_ops(struct vpu_dev *vpu);
 
 int vpu_hw_probe(struct vpu_dev *vpu);
 int vpu_hw_remove(struct vpu_dev *vpu);
+int vpu_hw_reset(struct vpu_dev *vpu);
 
 #endif

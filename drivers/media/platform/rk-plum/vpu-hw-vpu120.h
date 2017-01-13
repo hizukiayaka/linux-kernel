@@ -16,11 +16,12 @@
  * GNU General Public License for more details.
  */
 
-#ifndef _VPU_HW_RK3288_H_
-#define _VPU_HW_RK3288_H_
+#ifndef _VPU_HW_VPU120_H_
+#define _VPU_HW_VPU120_H_
 
 #include "vpu-common.h"
 
-struct vpu_hw_ops *vpu_init_hw_ops_rk3288(void);
+struct vpu_hw_ops *vpu_get_hw_ops_vepu120(void);
+struct vpu_hw_ops *vpu_get_hw_ops_vdpu120(void);
 
 #endif

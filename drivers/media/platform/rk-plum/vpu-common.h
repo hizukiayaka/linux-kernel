@@ -19,22 +19,27 @@
 #ifndef _VPU_COMMON_H_
 #define _VPU_COMMON_H_
 
-#include <media/media-entity.h>
-#include <media/v4l2-device.h>
+#include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/io.h>
 #include <linux/iommu.h>
 #include <linux/platform_device.h>
-#include <linux/videodev2.h>
 #include <linux/sizes.h>
+#include <linux/reset.h> 
+#include <linux/videodev2.h>
 
+#include <media/media-entity.h>
 #include <media/v4l2-common.h>
+#include <media/v4l2-device.h>
 #include <media/v4l2-mem2mem.h>
 #include <media/videobuf2-v4l2.h>
 #include <media/videobuf2-dma-contig.h>
 
-#define VPU_VERSION_RK3288	0x3288
-#define VPU_RK3288_BIT		BIT(0)
+#define VPU_TYPE_DECODER	(1<<31)
+#define VPU_TYPE_ENCODER	(1<<30)
+#define VPU_DEC_VERSION_120	0x0120 | VPU_TYPE_DECODER
+#define VPU_ENC_VERSION_120	0x0120 | VPU_TYPE_ENCODER
+#define VPU_V120_BIT		BIT(0)
 
 struct vpu_drvdata {
 	u32 version_bit;
@@ -44,33 +49,34 @@ struct vpu_drvdata {
 struct vpu_dev {
 	struct v4l2_device      v4l2_dev;
 	struct v4l2_m2m_dev     *m2m_dev;
-	struct video_device     hevc_vfd;
-	struct video_device     vepu_vfd;
-	struct video_device     vdpu_vfd;
+	struct video_device     *vfd;
 	struct platform_device  *plat_dev;
 
-	atomic_t                num_instances;  /* count of driver instances */
+	struct workqueue_struct *workqueue;
+	struct list_head        instances;
 	struct mutex            dev_mutex;
 	spinlock_t              lock;
 
-	int			irq_hevc;
-	int			irq_vepu;
-	int			irq_vdpu;
+	int			irq;
 	
 	struct clk              *clk_aclk;
 	struct clk              *clk_hclk;
 
-	void __iomem		*hevc_base;
-	void __iomem		*vepu_base;
-	void __iomem		*vdpu_base;
-	struct resource         *hevc_res;
-	struct resource         *vepu_res;
-	struct resource         *vdpu_res;
+	struct reset_control    *rst_v;
+	struct reset_control    *rst_a;
+	struct reset_control    *rst_h;
+	struct reset_control    *rst_niu_a;
+	struct reset_control    *rst_niu_h;
+
+	void __iomem		*regs_base;
 
 	struct dma_iommu_mapping *mapping;
 
 	struct vpu_drvdata	*drvdata;
 	struct vpu_hw_ops	*hw_ops;
 };
+
+int try_reset_assert(struct reset_control *rst);
+int try_reset_deassert(struct reset_control *rst);
 
 #endif
