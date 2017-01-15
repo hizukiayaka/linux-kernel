@@ -900,7 +900,7 @@ bool jd_submit_atom(struct kbase_context *kctx, const struct base_jd_atom_v2 *us
 	 * the scheduler: 'not ready to run' and 'dependency-only' jobs. */
 	jctx->job_nr++;
 
-	katom->start_timestamp.tv64 = 0;
+	katom->start_timestamp = 0;
 	katom->time_spent_us = 0;
 	katom->udata = user_atom->udata;
 	katom->kctx = kctx;

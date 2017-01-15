@@ -34,7 +34,8 @@
 #include <linux/mm_types.h>
 #include <linux/mutex.h>
 #include <linux/rwsem.h>
-#include <linux/sched.h>
+#include <linux/sched/mm.h>
+#include <linux/sched/task_stack.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
 #include <linux/vmalloc.h>
