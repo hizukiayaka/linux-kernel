@@ -1433,12 +1433,12 @@ static void dw_mci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 		}
 
 		/* Adjust clock / bus width after power is up */
-		dw_mci_setup_bus(slot, false, false);
+		dw_mci_setup_bus(slot, false, true);
 
 		break;
 	case MMC_POWER_OFF:
 		/* Turn clock off before power goes down */
-		dw_mci_setup_bus(slot, false, false);
+		dw_mci_setup_bus(slot, false, true);
 
 		if (!IS_ERR(mmc->supply.vmmc))
 			mmc_regulator_set_ocr(mmc, mmc->supply.vmmc, 0);
