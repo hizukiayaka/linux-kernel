@@ -307,6 +307,10 @@
 	mali-supply = <&vdd_gpu>;
 };
 
+&hdmi {
+	status = "okay";
+};
+
 &i2c0 {
 	hym8563: hym8563@51 {
 		compatible = "haoyu,hym8563";
