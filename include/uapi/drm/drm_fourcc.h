@@ -203,6 +203,7 @@ extern "C" {
 #define DRM_FORMAT_MOD_VENDOR_SAMSUNG 0x04
 #define DRM_FORMAT_MOD_VENDOR_QCOM    0x05
 #define DRM_FORMAT_MOD_VENDOR_VIVANTE 0x06
+#define DRM_FORMAT_MOD_VENDOR_ROCKCHIP 0x07
 /* add more to the end as needed */
 
 #define fourcc_mod_code(vendor, val) \
@@ -327,7 +328,6 @@ extern "C" {
  */
 #define DRM_FORMAT_MOD_VIVANTE_SPLIT_SUPER_TILED fourcc_mod_code(VIVANTE, 4)
 
-
 /* NVIDIA Tegra frame buffer modifiers */
 
 /*
@@ -371,6 +371,16 @@ extern "C" {
  * in full detail.
  */
 #define NV_FORMAT_MOD_TEGRA_16BX2_BLOCK(v) fourcc_mod_tegra_code(2, v)
+
+/*
+ * Rockchip 10bits color depth layout
+ *
+ * It could be regard as a compact variant of P010. The 6 bits set to zero
+ * in P010 are used to store the next pixel in this format. The stride should
+ * be aligned with 8 bit(a byte), so there would be zero bits at the last byte
+ * if the pixel can't fill it. And this format is not a tiling layout.
+ */
+#define DRM_FORMAT_MOD_ROCKCHIP_10BITS fourcc_mod_code(ROCKCHIP, 1)
 
 #if defined(__cplusplus)
 }
