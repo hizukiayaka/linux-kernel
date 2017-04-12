@@ -486,7 +486,7 @@ static void vcodec_enter_mode(struct vpu_subdev_data *data)
 	struct vpu_service_info *pservice = data->pservice;
 	struct vpu_subdev_data *subdata, *n;
 
-	if (pservice->subcnt < 2) {
+	if (pservice->subcnt < 2 || pservice->mode_ctrl == 0) {
 		if (data->mmu_dev && !test_bit(MMU_ACTIVATED, &data->state)) {
 			set_bit(MMU_ACTIVATED, &data->state);
 
@@ -603,7 +603,9 @@ static int vpu_get_clk(struct vpu_service_info *pservice)
 		if (IS_ERR(pservice->clk_core)) {
 			dev_err(dev, "failed on clk_get clk_core\n");
 			pservice->clk_core = NULL;
-			return -1;
+			/* The VDPU and AVSD combo doesn't need those clocks */
+			if (pservice->dev_id == VCODEC_DEVICE_ID_RKVDEC)
+				return -1;
 		}
 	case VCODEC_DEVICE_ID_VPU:
 		pservice->aclk_vcodec = devm_clk_get(dev, "aclk_vcodec");
@@ -2035,12 +2037,11 @@ static long compat_vpu_service_ioctl(struct file *filp, unsigned int cmd,
 
 static int vpu_service_check_hw(struct vpu_subdev_data *data)
 {
-	struct vpu_service_info *pservice = data->pservice;
 	int ret = -EINVAL, i = 0;
 	u32 hw_id = readl_relaxed(data->regs);
 
 	hw_id = (hw_id >> 16) & 0xFFFF;
-	dev_info(pservice->dev, "checking hw id %x\n", hw_id);
+	dev_info(data->dev, "checking hw id %x\n", hw_id);
 	data->hw_info = NULL;
 
 	for (i = 0; i < ARRAY_SIZE(vcodec_info_set); i++) {
@@ -2337,7 +2338,7 @@ static int vcodec_subdev_probe(struct platform_device *pdev,
 	vcodec_enter_mode(data);
 	ret = vpu_service_check_hw(data);
 	if (ret < 0) {
-		vpu_err("error: hw info check faild\n");
+		dev_err(dev, "error: hw info check failed\n");
 		goto err;
 	}
 	vcodec_exit_mode(data);
@@ -2426,6 +2427,7 @@ static int vcodec_subdev_probe(struct platform_device *pdev,
 
 	return 0;
 err:
+	dev_err(dev, "probe err:%d\n", ret);
 	if (data->child_dev) {
 		device_destroy(data->cls, data->dev_t);
 		cdev_del(&data->cdev);
@@ -2781,7 +2783,7 @@ static void get_hw_info(struct vpu_subdev_data *data)
 		dec->reserve = 0;
 		dec->mvc_support = 1;
 
-		if (!of_machine_is_compatible("rockchip,rk3036")) {
+		if (data->enc_dev.regs) {
 			u32 config_reg = readl_relaxed(data->enc_dev.regs + 63);
 
 			enc->max_encoded_width = config_reg & ((1 << 11) - 1);
@@ -2861,6 +2863,7 @@ static irqreturn_t vdpu_irq(int irq, void *dev_id)
 
 		atomic_add(1, &dev->irq_count_codec);
 		time_diff(task);
+		pservice->irq_status = raw_status;
 	}
 
 	task = &data->task_info[TASK_PP];
@@ -2882,8 +2885,6 @@ static irqreturn_t vdpu_irq(int irq, void *dev_id)
 			time_diff(task);
 		}
 	}
-
-	pservice->irq_status = raw_status;
 
 	if (atomic_read(&dev->irq_count_pp) ||
 	    atomic_read(&dev->irq_count_codec))
