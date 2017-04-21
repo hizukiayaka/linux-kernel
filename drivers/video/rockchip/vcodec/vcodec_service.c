@@ -405,6 +405,8 @@ struct vpu_service_info {
 	struct reset_control *rst_a;
 	struct reset_control *rst_h;
 	struct reset_control *rst_v;
+	struct reset_control *rst_niu_a;
+	struct reset_control *rst_niu_h;
 #endif
 	struct device *dev;
 
@@ -478,6 +480,21 @@ static void time_diff(struct vpu_task_info *task)
 		  (task->end.tv_sec  - task->start.tv_sec)  * 1000 +
 		  (task->end.tv_usec - task->start.tv_usec) / 1000);
 }
+
+static inline int try_reset_assert(struct reset_control *rst)
+{
+	if (rst)
+		return reset_control_assert(rst);
+	return -EINVAL;
+}
+
+static inline int try_reset_deassert(struct reset_control *rst)
+{
+	if (rst)
+		return reset_control_deassert(rst);
+	return -EINVAL;
+}
+
 
 static void vcodec_enter_mode(struct vpu_subdev_data *data)
 {
@@ -656,31 +673,25 @@ static void _vpu_reset(struct vpu_subdev_data *data)
 	pservice->reg_resev = NULL;
 
 #ifdef CONFIG_RESET_CONTROLLER
-	dev_info(pservice->dev, "for 3288/3368...");
 	if (of_machine_is_compatible("rockchip,rk3288"))
 		rockchip_pmu_idle_request(pservice->dev, true);
-	if (pservice->rst_a && pservice->rst_h) {
-		dev_info(pservice->dev, "vpu reset in\n");
 
-		if (pservice->rst_v)
-			reset_control_assert(pservice->rst_v);
-		reset_control_assert(pservice->rst_a);
-		reset_control_assert(pservice->rst_h);
-		udelay(5);
+	try_reset_assert(pservice->rst_niu_a);
+	try_reset_assert(pservice->rst_niu_h);
+	try_reset_assert(pservice->rst_v);
+	try_reset_assert(pservice->rst_a);
+	try_reset_assert(pservice->rst_h);
+	udelay(5);
 
-		reset_control_deassert(pservice->rst_h);
-		reset_control_deassert(pservice->rst_a);
-		if (pservice->rst_v)
-			reset_control_deassert(pservice->rst_v);
-	} else if (pservice->rst_v) {
-		dev_info(pservice->dev, "hevc reset in\n");
-		reset_control_assert(pservice->rst_v);
-		udelay(5);
+	try_reset_deassert(pservice->rst_h);
+	try_reset_deassert(pservice->rst_a);
+	try_reset_deassert(pservice->rst_v);
+	try_reset_deassert(pservice->rst_niu_h);
+	try_reset_deassert(pservice->rst_niu_a);
 
-		reset_control_deassert(pservice->rst_v);
-	}
 	if (of_machine_is_compatible("rockchip,rk3288"))
 		rockchip_pmu_idle_request(pservice->dev, false);
+	dev_info(pservice->dev, "reset done\n");
 #endif
 }
 
@@ -2500,20 +2511,30 @@ static void vcodec_read_property(struct device_node *np,
 	pservice->rst_a = devm_reset_control_get(pservice->dev, "video_a");
 	pservice->rst_h = devm_reset_control_get(pservice->dev, "video_h");
 	pservice->rst_v = devm_reset_control_get(pservice->dev, "video");
+	pservice->rst_niu_a = devm_reset_control_get(pservice->dev, "niu_a");
+	pservice->rst_niu_h = devm_reset_control_get(pservice->dev, "niu_h");
 
 	if (IS_ERR_OR_NULL(pservice->rst_a)) {
-		dev_warn(pservice->dev, "No aclk reset resource define\n");
+		dev_info(pservice->dev, "No aclk reset resource define\n");
 		pservice->rst_a = NULL;
 	}
 
 	if (IS_ERR_OR_NULL(pservice->rst_h)) {
-		dev_warn(pservice->dev, "No hclk reset resource define\n");
+		dev_info(pservice->dev, "No hclk reset resource define\n");
 		pservice->rst_h = NULL;
 	}
 
 	if (IS_ERR_OR_NULL(pservice->rst_v)) {
-		dev_warn(pservice->dev, "No core reset resource define\n");
+		dev_info(pservice->dev, "No core reset resource define\n");
 		pservice->rst_v = NULL;
+	}
+	if (IS_ERR_OR_NULL(pservice->rst_niu_a)) {
+		dev_info(pservice->dev, "No NIU aclk reset resource define\n");
+		pservice->rst_niu_a = NULL;
+	}
+	if (IS_ERR_OR_NULL(pservice->rst_niu_h)) {
+		dev_info(pservice->dev, "No NIU hclk reset resource define\n");
+		pservice->rst_niu_h = NULL;
 	}
 #endif
 
