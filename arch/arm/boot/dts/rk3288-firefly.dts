@@ -48,8 +48,20 @@
 	compatible = "firefly,firefly-rk3288", "rockchip,rk3288";
 };
 
+&edp {
+	status = "okay";
+};
+
+&edp_phy {
+	status = "okay";
+};
+
 &ir {
 	gpios = <&gpio7 RK_PA0 GPIO_ACTIVE_LOW>;
+};
+
+&panel {
+	status = "okay";
 };
 
 &pinctrl {
@@ -67,5 +79,21 @@
 };
 
 &pwm1 {
+	status = "okay";
+};
+
+&vopb {
+	status = "okay";
+};
+
+&vopb_mmu {
+	status = "okay";
+};
+
+&vopl {
+	status = "okay";
+};
+
+&vopl_mmu {
 	status = "okay";
 };
