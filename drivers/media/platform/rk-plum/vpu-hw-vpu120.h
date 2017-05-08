@@ -20,6 +20,7 @@
 #define _VPU_HW_VPU120_H_
 
 #include "vpu-common.h"
+#include "vpu-hw-common.h"
 
 struct vpu_hw_ops *vpu_get_hw_ops_vepu120(void);
 struct vpu_hw_ops *vpu_get_hw_ops_vdpu120(void);

@@ -25,7 +25,6 @@
 #include <linux/iommu.h>
 #include <linux/platform_device.h>
 #include <linux/sizes.h>
-#include <linux/reset.h> 
 #include <linux/videodev2.h>
 
 #include <media/media-entity.h>
@@ -40,6 +39,8 @@
 #define VPU_DEC_VERSION_120	0x0120 | VPU_TYPE_DECODER
 #define VPU_ENC_VERSION_120	0x0120 | VPU_TYPE_ENCODER
 #define VPU_V120_BIT		BIT(0)
+
+extern int vpu_debug;
 
 struct vpu_drvdata {
 	u32 version_bit;
@@ -75,8 +76,5 @@ struct vpu_dev {
 	struct vpu_drvdata	*drvdata;
 	struct vpu_hw_ops	*hw_ops;
 };
-
-int try_reset_assert(struct reset_control *rst);
-int try_reset_deassert(struct reset_control *rst);
 
 #endif

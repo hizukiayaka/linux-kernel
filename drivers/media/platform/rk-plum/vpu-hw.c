@@ -1,8 +1,9 @@
 /*
- * Rockchip VPU codec driver, based on the virtual v4l2-mem2mem example driver
+ * Rockchip VPU codec driver
  *
  * Copyright (C) 2014 - 2016 Rockchip Electronics Co., Ltd.
  *	Randy Li <randy.li@rock-chips.com>
+ *	Randy Li <ayaka@soulik.info>
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -15,6 +16,7 @@
  */
 
 #include "vpu-hw.h"
+#include "vpu-hw-common.h"
 #include "vpu-hw-vpu120.h"
 
 void vpu_hw_init_ops(struct vpu_dev *vpu)
@@ -58,18 +60,4 @@ int vpu_hw_reset(struct vpu_dev *vpu)
 		return -EINVAL;
 
 	return vpu->hw_ops->reset(vpu);
-}
-
-inline int try_reset_assert(struct reset_control *rst)
-{
-	if (!IS_ERR_OR_NULL(rst))
-		return reset_control_assert(rst);
-	return -EINVAL;
-}
-
-inline int try_reset_deassert(struct reset_control *rst)
-{
-	if (!IS_ERR_OR_NULL(rst))
-		return reset_control_deassert(rst);
-	return -EINVAL;
 }

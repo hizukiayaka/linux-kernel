@@ -498,4 +498,5 @@
 #define VPU120_VDPU_REG_REF_BUF_CTRL2_REFBU2_PICID(x)	(((x) & 0x1f) << 14)
 #define VPU120_VDPU_REG_REF_BUF_CTRL2_APF_THRESHOLD(x)	(((x) & 0x3fff) << 0)
 
+#define VPU120_VDPU_REG_SOFT_RESET			0x0194
 #endif /* REGS_VPU120_H_ */

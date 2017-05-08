@@ -53,6 +53,10 @@
 
 #define VPU_MODULE_NAME "rockchip-vpu"
 
+int vpu_debug;
+module_param(vpu_debug, int, 0644);
+MODULE_PARM_DESC(vpu_debug, "Debug level (0-2)");
+
 static struct v4l2_m2m_ops m2m_ops = {
 };
 
@@ -252,3 +256,7 @@ static struct platform_driver rockchip_vpu_driver = {
 };
 
 module_platform_driver(rockchip_vpu_driver);
+
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Randy Li <ayaka@soulik.info>");
+MODULE_DESCRIPTION("Rockchip Video codec V4L2 driver");

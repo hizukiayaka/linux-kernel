@@ -16,22 +16,23 @@
  * GNU General Public License for more details.
  */
 
-#ifndef _VPU_HW_H_
-#define _VPU_HW_H_
+#ifndef _VPU_HW_COMMON_H_
+#define _VPU_HW_COMMON_H_
 
-#include <media/media-entity.h>
-#include <media/v4l2-device.h>
-#include <linux/device.h>
-#include <linux/io.h>
-#include <linux/iommu.h>
-#include <linux/platform_device.h>
+#include <linux/reset.h> 
 
 #include "vpu-common.h"
 
-void vpu_hw_init_ops(struct vpu_dev *vpu);
+struct vpu_hw_ops {
+	int (*probe)(struct vpu_dev *vpu);
+	int (*remove)(struct vpu_dev *vpu);
+	int (*reset)(struct vpu_dev *vpu);
+};
 
-int vpu_hw_probe(struct vpu_dev *vpu);
-int vpu_hw_remove(struct vpu_dev *vpu);
-int vpu_hw_reset(struct vpu_dev *vpu);
+unsigned int vpu_read(struct vpu_dev *dev, u32 reg);
+void vpu_write(struct vpu_dev *dev, u32 data, u32 reg);
+
+int try_reset_assert(struct reset_control *rst);
+int try_reset_deassert(struct reset_control *rst);
 
 #endif
