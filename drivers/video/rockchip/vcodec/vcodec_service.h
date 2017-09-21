@@ -49,20 +49,4 @@ enum VPU_CLIENT_TYPE {
 	VPU_TYPE_BUTT,
 };
 
-/* struct for process session which connect to vpu */
-struct vpu_session {
-	enum VPU_CLIENT_TYPE type;
-	/* a linked list of data so we can access them for debugging */
-	struct list_head list_session;
-	/* a linked list of register data waiting for process */
-	struct list_head waiting;
-	/* a linked list of register data in processing */
-	struct list_head running;
-	/* a linked list of register data processed */
-	struct list_head done;
-	wait_queue_head_t wait;
-	pid_t pid;
-	atomic_t task_running;
-};
-
 #endif
