@@ -22,6 +22,7 @@
 #include "mpp_dev_common.h"
 
 struct mpp_session {
+	struct mpp_dma_session *dma;
 	/* a linked list of data so we can access them for debugging */
 	struct list_head list_session;
 	/* the session related device private data */
