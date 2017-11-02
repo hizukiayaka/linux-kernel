@@ -1354,24 +1354,38 @@
 		status = "disabled";
 	};
 
-	vpu: vpu_service@ff650000 {
-		compatible = "rockchip,vpu_service";
-		rockchip,grf = <&grf>;
+	vpu_service: vpu-srv {
+		compatible = "rockchip,mpp-service";
+		status = "disabled";
+	};
+
+	vepu: vpu-encoder@ff650000 {
+		compatible = "rockchip,vpu-encoder-v2";
+		reg = <0x0 0xff650000 0x0 0x400>;
+		interrupts = <GIC_SPI 114 IRQ_TYPE_LEVEL_HIGH 0>;
+		interrupt-names = "irq_enc";
+		clocks = <&cru ACLK_VCODEC>, <&cru HCLK_VCODEC>;
+		clock-names = "aclk_vcodec", "hclk_vcodec";
+		resets = <&cru SRST_H_VCODEC>, <&cru SRST_A_VCODEC>;
+		reset-names = "video_h", "video_a";
 		iommus = <&vpu_mmu>;
-		iommu_enabled = <1>;
-		reg = <0x0 0xff650000 0x0 0x800>;
-		interrupts = <GIC_SPI 113 IRQ_TYPE_LEVEL_HIGH 0>,
-			     <GIC_SPI 114 IRQ_TYPE_LEVEL_HIGH 0>;
-		interrupt-names = "irq_dec", "irq_enc";
+		power-domains = <&power RK3399_PD_VCODEC>;
+		rockchip,srv = <&vpu_service>;
+		status = "disabled";
+	};
+
+	vdpu: vpu-decoder@ff650400 {
+		compatible = "rockchip,vpu-decoder-v2";
+		reg = <0x0 0xff650400 0x0 0x400>;
+		interrupts = <GIC_SPI 113 IRQ_TYPE_LEVEL_HIGH 0>;
+		interrupt-names = "irq_dec";
+		iommus = <&vpu_mmu>;
 		clocks = <&cru ACLK_VCODEC>, <&cru HCLK_VCODEC>;
 		clock-names = "aclk_vcodec", "hclk_vcodec";
 		resets = <&cru SRST_H_VCODEC>, <&cru SRST_A_VCODEC>;
 		reset-names = "video_h", "video_a";
 		power-domains = <&power RK3399_PD_VCODEC>;
-		name = "vpu_service";
-		dev_mode = <0>;
-		/* 0 means ion, 1 means drm */
-		allocator = <1>;
+		rockchip,srv = <&vpu_service>;
 		status = "disabled";
 	};
 
@@ -1384,13 +1398,18 @@
 		clock-names = "aclk", "hclk";
 		power-domains = <&power RK3399_PD_VCODEC>;
 		#iommu-cells = <0>;
+		status = "disabled";
 	};
 
-	rkvdec: rkvdec@ff660000 {
-		compatible = "rockchip,rkvdec";
+	rkvdec_srv: rkvdec-srv {
+		compatible = "rockchip,mpp-service";
+		status = "disabled";
+	};
+
+	rkvdec: video-decoder@ff660000 {
+		compatible = "rockchip,video-decoder-v1";
 		rockchip,grf = <&grf>;
 		iommus = <&vdec_mmu>;
-		iommu_enabled = <1>;
 		reg = <0x0 0xff660000 0x0 0x400>;
 		interrupts = <GIC_SPI 116 IRQ_TYPE_LEVEL_HIGH 0>;
 		interrupt-names = "irq_dec";
@@ -1404,10 +1423,7 @@
 		reset-names = "video_h", "video_a", "video_core", "video_cabac",
 				"niu_a", "niu_h";
 		power-domains = <&power RK3399_PD_VDU>;
-		dev_mode = <2>;
-		name = "rkvdec";
-		/* 0 means ion, 1 means drm */
-		allocator = <1>;
+		rockchip,srv = <&rkvdec_srv>;
 		status = "disabled";
 	};
 
@@ -1420,6 +1436,7 @@
 		clock-names = "aclk", "hclk";
 		power-domains = <&power RK3399_PD_VDU>;
 		#iommu-cells = <0>;
+		status = "disabled";
 	};
 
 	iep: iep@ff670000 {
