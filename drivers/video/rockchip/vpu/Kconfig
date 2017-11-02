@@ -13,5 +13,12 @@ config ROCKCHIP_MPP_DEVICE
 	depends on ROCKCHIP_MPP_SERVICE
 	default n
 	help
-	  rockchip mpp module.
+	  rockchip mpp device framework.
+
+config ROCKCHIP_MPP_VDEC_DEVICE
+	tristate "video decoder device driver"
+	depends on ROCKCHIP_MPP_DEVICE
+	default n
+	help
+	  rockchip mpp video decoder and hevc decoder.
 endmenu
