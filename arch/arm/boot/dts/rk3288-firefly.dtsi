@@ -359,9 +359,12 @@
 	status = "okay";
 };
 
+&hevc {
+	status = "okay";
+};
+
 &hevc_service {
 	status = "okay";
-
 };
 
 &i2c0 {
@@ -759,6 +762,14 @@
 };
 
 &usb_otg {
+	status = "okay";
+};
+
+&vdpu {
+	status = "okay";
+};
+
+&vepu {
 	status = "okay";
 };
 

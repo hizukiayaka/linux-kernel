@@ -355,6 +355,14 @@
 	status = "okay";
 };
 
+&hevc {
+	status = "okay";
+};
+
+&hevc_service {
+	status = "okay";
+};
+
 &gmac {
 	phy-supply = <&vcc_phy>;
 	snps,reset-gpio = <&gpio4 7 0>;
@@ -626,6 +634,14 @@
 };
 
 &isp_mmu {
+	status = "okay";
+};
+
+&vdpu {
+	status = "okay";
+};
+
+&vepu {
 	status = "okay";
 };
 
