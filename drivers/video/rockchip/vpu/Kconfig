@@ -21,4 +21,18 @@ config ROCKCHIP_MPP_VDEC_DEVICE
 	default n
 	help
 	  rockchip mpp video decoder and hevc decoder.
+
+config ROCKCHIP_MPP_VDPU1_DEVICE
+	tristate "VPU decoder v1 device driver"
+	depends on ROCKCHIP_MPP_DEVICE
+	default n
+	help
+	  rockchip mpp vpu decoder v1.
+
+config ROCKCHIP_MPP_VDPU2_DEVICE
+	tristate "VPU decoder v2 device driver"
+	depends on ROCKCHIP_MPP_DEVICE
+	default n
+	help
+	  rockchip mpp vpu decoder v2.
 endmenu
