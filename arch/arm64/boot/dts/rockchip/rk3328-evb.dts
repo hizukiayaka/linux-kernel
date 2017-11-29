@@ -604,6 +604,14 @@
 	vref-supply = <&vdd_18>;
 };
 
+&rkvdec_mmu {
+	status = "okay";
+};
+
+&rkvdec_srv {
+	status = "okay";
+};
+
 &sdio {
 	bus-width = <4>;
 	cap-sd-highspeed;
@@ -698,6 +706,14 @@
 };
 
 &vop_mmu {
+	status = "okay";
+};
+
+&vdpu {
+	status = "okay";
+};
+
+&vpu_mmu {
 	status = "okay";
 };
 
