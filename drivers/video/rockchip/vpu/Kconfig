@@ -29,10 +29,24 @@ config ROCKCHIP_MPP_VDPU1_DEVICE
 	help
 	  rockchip mpp vpu decoder v1.
 
+config ROCKCHIP_MPP_VEPU1_DEVICE
+	tristate "VPU encoder v1 device driver"
+	depends on ROCKCHIP_MPP_DEVICE
+	default n
+	help
+	  rockchip mpp vpu encoder v1.
+
 config ROCKCHIP_MPP_VDPU2_DEVICE
 	tristate "VPU decoder v2 device driver"
 	depends on ROCKCHIP_MPP_DEVICE
 	default n
 	help
 	  rockchip mpp vpu decoder v2.
+
+config ROCKCHIP_MPP_VEPU2_DEVICE
+	tristate "VPU encoder v2 device driver"
+	depends on ROCKCHIP_MPP_DEVICE
+	default n
+	help
+	  rockchip mpp vpu encoder v2.
 endmenu
