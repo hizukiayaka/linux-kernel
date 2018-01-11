@@ -1818,6 +1818,7 @@
 		clocks = <&cru ACLK_VOP1>, <&cru DCLK_VOP1>, <&cru HCLK_VOP1>, <&cru DCLK_VOP1_DIV>;
 		clock-names = "aclk_vop", "dclk_vop", "hclk_vop", "dclk_source";
 		iommus = <&vopl_mmu>;
+		deferred_attach;
 		power-domains = <&power RK3399_PD_VOPL>;
 		resets = <&cru SRST_A_VOP1>, <&cru SRST_H_VOP1>, <&cru SRST_D_VOP1>;
 		reset-names = "axi", "ahb", "dclk";
@@ -1891,6 +1892,7 @@
 		power-domains = <&power RK3399_PD_VOPB>;
 		iommus = <&vopb_mmu>;
 		status = "disabled";
+		deferred_attach;
 
 		vopb_out: port {
 			#address-cells = <1>;

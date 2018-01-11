@@ -948,6 +948,7 @@
 		resets = <&cru SRST_VOP_A>, <&cru SRST_VOP_H>, <&cru SRST_VOP_D>;
 		reset-names = "axi", "ahb", "dclk";
 		iommus = <&vop_mmu>;
+		deferred_attach;
 		status = "disabled";
 
 		vop_out: port {

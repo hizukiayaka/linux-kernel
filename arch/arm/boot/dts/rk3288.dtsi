@@ -1387,6 +1387,7 @@
 		resets = <&cru SRST_LCDC0_AXI>, <&cru SRST_LCDC0_AHB>, <&cru SRST_LCDC0_DCLK>;
 		reset-names = "axi", "ahb", "dclk";
 		iommus = <&vopb_mmu>;
+		deferred_attach;
 		status = "disabled";
 
 		vopb_out: port {
@@ -1449,6 +1450,7 @@
 		resets = <&cru SRST_LCDC1_AXI>, <&cru SRST_LCDC1_AHB>, <&cru SRST_LCDC1_DCLK>;
 		reset-names = "axi", "ahb", "dclk";
 		iommus = <&vopl_mmu>;
+		deferred_attach;
 		status = "disabled";
 
 		vopl_out: port {
