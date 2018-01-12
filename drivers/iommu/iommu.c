@@ -425,8 +425,10 @@ rename:
 
 	mutex_lock(&group->mutex);
 	list_add_tail(&device->list, &group->devices);
-	if (group->domain)
+	if (group->domain) {
+		if (!device_property_read_bool(dev, "deferred_attach"))
 		ret = __iommu_attach_device(group->domain, dev);
+	}
 	mutex_unlock(&group->mutex);
 	if (ret)
 		goto err_put_group;
@@ -550,6 +552,19 @@ int iommu_group_for_each_dev(struct iommu_group *group, void *data,
 	return ret;
 }
 EXPORT_SYMBOL_GPL(iommu_group_for_each_dev);
+
+/**
+ * iommu_group_ref_get - Increment reference on a group
+ * @group: the group to use, must not be NULL
+ *
+ * This function is called by iommu drivers to take additional references on an
+ * existing group.  Returns the given group for convenience.
+ */
+struct iommu_group *iommu_group_ref_get(struct iommu_group *group)
+{
+	kobject_get(group->devices_kobj);
+	return group;
+}
 
 /**
  * iommu_group_get - Return the group for a device and increment reference
@@ -924,10 +939,10 @@ static int iommu_bus_notifier(struct notifier_block *nb,
 	 * ADD/DEL call into iommu driver ops if provided, which may
 	 * result in ADD/DEL notifiers to group->notifier
 	 */
-	if (action == BUS_NOTIFY_ADD_DEVICE) {
+	if (action == BUS_NOTIFY_BIND_DRIVER) {
 		if (ops->add_device)
 			return ops->add_device(dev);
-	} else if (action == BUS_NOTIFY_REMOVED_DEVICE) {
+	} else if (action == BUS_NOTIFY_UNBOUND_DRIVER) {
 		if (ops->remove_device && dev->iommu_group) {
 			ops->remove_device(dev);
 			return 0;
