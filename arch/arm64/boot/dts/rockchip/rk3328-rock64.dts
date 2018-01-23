@@ -52,18 +52,6 @@
 		stdout-path = "serial2:1500000n8";
 	};
 
-	fiq-debugger {
-		compatible = "rockchip,fiq-debugger";
-		rockchip,serial-id = <2>;
-		rockchip,signal-irq = <159>;
-		rockchip,wake-irq = <0>;
-		/* If enable uart uses irq instead of fiq */
-		rockchip,irq-mode-enable = <0>;
-		rockchip,baudrate = <1500000>;  /* Only 115200 and 1500000 */
-		interrupts = <GIC_SPI 127 IRQ_TYPE_LEVEL_LOW>;
-		status = "okay";
-	};
-
 	gmac_clkin: external-gmac-clock {
 		compatible = "fixed-clock";
 		clock-frequency = <125000000>;
@@ -175,6 +163,15 @@
 	cpu-supply = <&vdd_arm>;
 };
 
+&dfi {
+	status = "okay";
+};
+
+&dmc {
+	center-supply = <&vdd_logic>;
+	status = "okay";
+};
+
 &display_subsystem {
 	status = "okay";
 };
@@ -184,11 +181,13 @@
 	cap-mmc-highspeed;
 	mmc-hs200-1_8v;
 	non-removable;
+	disable-wp;
 	supports-emmc;
-	pinctrl-names = "default";
 	pinctrl-0 = <&emmc_clk &emmc_cmd &emmc_bus8>;
+	pinctrl-names = "default";
 	vmmc-supply = <&vcc_io>;
 	vqmmc-supply = <&vcc18_emmc>;
+	num-slots = <1>;
 	status = "okay";
 };
 
@@ -201,10 +200,11 @@
 	snps,reset-gpio = <&gpio1 18 GPIO_ACTIVE_LOW>;
 	snps,reset-active-low;
 	snps,reset-delays-us = <0 10000 50000>;
+	snps,force_thresh_dma_mode;
 	pinctrl-names = "default";
 	pinctrl-0 = <&rgmiim1_pins>;
-	tx_delay = <0x26>;
-	rx_delay = <0x11>;
+	tx_delay = <0x24>;
+	rx_delay = <0x18>;
 	status = "okay";
 };
 
@@ -235,7 +235,6 @@
 
 	rk805: rk805@18 {
 		compatible = "rockchip,rk805";
-		status = "okay";
 		reg = <0x18>;
 		interrupt-parent = <&gpio2>;
 		interrupts = <6 IRQ_TYPE_LEVEL_LOW>;
@@ -274,7 +273,6 @@
 			#size-cells = <0>;
 
 			vdd_logic: RK805_DCDC1 {
-				regulator-compatible = "RK805_DCDC1";
 				regulator-name = "vdd_logic";
 				regulator-min-microvolt = <712500>;
 				regulator-max-microvolt = <1450000>;
@@ -290,7 +288,6 @@
 			};
 
 			vdd_arm: RK805_DCDC2 {
-				regulator-compatible = "RK805_DCDC2";
 				regulator-name = "vdd_arm";
 				regulator-min-microvolt = <712500>;
 				regulator-max-microvolt = <1450000>;
@@ -306,7 +303,6 @@
 			};
 
 			vcc_ddr: RK805_DCDC3 {
-				regulator-compatible = "RK805_DCDC3";
 				regulator-name = "vcc_ddr";
 				regulator-initial-mode = <0x1>;
 				regulator-boot-on;
@@ -318,7 +314,6 @@
 			};
 
 			vcc_io: RK805_DCDC4 {
-				regulator-compatible = "RK805_DCDC4";
 				regulator-name = "vcc_io";
 				regulator-min-microvolt = <3300000>;
 				regulator-max-microvolt = <3300000>;
@@ -333,7 +328,6 @@
 			};
 
 			vdd_18: RK805_LDO1 {
-				regulator-compatible = "RK805_LDO1";
 				regulator-name = "vdd_18";
 				regulator-min-microvolt = <1800000>;
 				regulator-max-microvolt = <1800000>;
@@ -346,7 +340,6 @@
 			};
 
 			vcc18_emmc: RK805_LDO2 {
-				regulator-compatible = "RK805_LDO2";
 				regulator-name = "vcc18_emmc";
 				regulator-min-microvolt = <1800000>;
 				regulator-max-microvolt = <1800000>;
@@ -358,16 +351,15 @@
 				};
 			};
 
-			vdd_10: RK805_LDO3 {
-				regulator-compatible = "RK805_LDO3";
-				regulator-name = "vdd_10";
-				regulator-min-microvolt = <1000000>;
-				regulator-max-microvolt = <1000000>;
+			vdd_11: RK805_LDO3 {
+				regulator-name = "vdd_11";
+				regulator-min-microvolt = <1100000>;
+				regulator-max-microvolt = <1100000>;
 				regulator-boot-on;
 				regulator-always-on;
 				regulator-state-mem {
 					regulator-on-in-suspend;
-					regulator-suspend-microvolt = <1000000>;
+					regulator-suspend-microvolt = <1100000>;
 				};
 			};
 		};
@@ -445,6 +437,7 @@
 	max-frequency = <150000000>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&sdmmc0_clk &sdmmc0_cmd &sdmmc0_dectn &sdmmc0_bus4>;
+	num-slots = <1>;
 	vmmc-supply = <&vcc_sd>;
 	supports-sd;
 	status = "okay";
@@ -460,7 +453,7 @@
 		reg = <0>;
 		m25p,fast-read;
 		/* The max SCLK of the flash 104/80 MHZ  */
-		spi-max-frequency = <50000000>;
+		spi-max-frequency = <24000000>;
 	};
 };
 
