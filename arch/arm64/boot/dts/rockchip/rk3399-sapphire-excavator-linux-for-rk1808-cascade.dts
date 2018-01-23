@@ -216,16 +216,12 @@
 	vref-supply = <&vccadc_ref>;
 };
 
-&vpu {
-	status = "okay";
-	/* 0 means ion, 1 means drm */
-	//allocator = <0>;
-};
-
 &rkvdec {
 	status = "okay";
-	/* 0 means ion, 1 means drm */
-	//allocator = <0>;
+};
+
+&rkvdec_srv {
+	status = "okay";
 };
 
 &backlight {
@@ -474,6 +470,18 @@
 	status = "disabled";
 };
 
+&vdec_mmu {
+	status = "okay";
+};
+
+&vdpu {
+	status = "okay";
+};
+
+&vepu {
+	status = "okay";
+};
+
 &vopb {
 	status = "okay";
 };
@@ -487,5 +495,13 @@
 };
 
 &vopl_mmu {
+	status = "okay";
+};
+
+&vpu_mmu {
+	status = "okay";
+};
+
+&vpu_service {
 	status = "okay";
 };

@@ -938,10 +938,6 @@
 	status = "okay";
 };
 
-&rkvdec {
-	status = "okay";
-};
-
 &rockchip_suspend {
 	rockchip,power-ctrl =
 		<&gpio1 18 GPIO_ACTIVE_LOW>,
@@ -1098,9 +1094,5 @@
 };
 
 &vopl_mmu {
-	status = "okay";
-};
-
-&vpu {
 	status = "okay";
 };

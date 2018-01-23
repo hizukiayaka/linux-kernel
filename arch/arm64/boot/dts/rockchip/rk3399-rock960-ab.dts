@@ -1066,16 +1066,32 @@
 	status = "okay";
 };
 
-&vpu {
+&vdec_mmu {
 	status = "okay";
-	/* 0 means ion, 1 means drm */
-	//allocator = <0>;
+};
+
+&vdpu {
+	status = "okay";
+};
+
+&vepu {
+	status = "okay";
+};
+
+&vpu_mmu {
+	status = "okay";
+};
+
+&vpu_service {
+	status = "okay";
 };
 
 &rkvdec {
 	status = "okay";
-	/* 0 means ion, 1 means drm */
-	//allocator = <0>;
+};
+
+&rkvdec_srv {
+	status = "okay";
 };
 
 &display_subsystem {

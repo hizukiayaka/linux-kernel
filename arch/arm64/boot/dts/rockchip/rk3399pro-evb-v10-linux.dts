@@ -927,8 +927,10 @@
 
 &rkvdec {
 	status = "okay";
-	/* 0 means ion, 1 means drm */
-	//allocator = <0>;
+};
+
+&rkvdec_srv {
+	status = "okay";
 };
 
 &rockchip_suspend {
@@ -1059,6 +1061,18 @@
 	status = "okay";
 };
 
+&vdec_mmu {
+	status = "okay";
+};
+
+&vdpu {
+	status = "okay";
+};
+
+&vepu {
+	status = "okay";
+};
+
 &vopb {
 	status = "okay";
 };
@@ -1075,10 +1089,8 @@
 	status = "okay";
 };
 
-&vpu {
+&vpu_service {
 	status = "okay";
-	/* 0 means ion, 1 means drm */
-	//allocator = <0>;
 };
 
 &pinctrl {

@@ -245,6 +245,14 @@
 	status = "okay";
 };
 
+&rkvdec {
+	status = "okay";
+};
+
+&rkvdec_srv {
+	status = "okay";
+};
+
 &rockchip_suspend {
 	status = "okay";
 	rockchip,sleep-debug-en = <1>;
@@ -288,4 +296,24 @@
 				<2 19 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
+};
+
+&vdpu {
+	status = "okay";
+};
+
+&vepu {
+	status = "okay";
+};
+
+&vpu_service {
+	status = "okay";
+};
+
+&vpu_mmu {
+	status = "okay";
+};
+
+&vdec_mmu {
+	status = "okay";
 };
