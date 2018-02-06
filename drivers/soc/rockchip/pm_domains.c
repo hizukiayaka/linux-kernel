@@ -49,6 +49,7 @@ struct rockchip_pmu_info {
 	u32 req_offset;
 	u32 idle_offset;
 	u32 ack_offset;
+	bool ack_acknowledge;
 
 	u32 core_pwrcnt_offset;
 	u32 gpu_pwrcnt_offset;
@@ -190,9 +191,10 @@ static int rockchip_pmu_set_idle_request(struct rockchip_pm_domain *pd,
 				   pd_info->req_mask, idle ? -1U : 0);
 
 	dsb(sy);
-
-	/* Wait util idle_ack = 1 */
-	target_ack = idle ? pd_info->ack_mask : 0;
+	if (pmu->info->ack_acknowledge)
+		target_ack = pd_info->ack_mask;
+	else
+		target_ack = idle ? pd_info->ack_mask : 0;
 	ret = readx_poll_timeout_atomic(rockchip_pmu_read_ack, pmu, val,
 					(val & pd_info->ack_mask) == target_ack,
 					0, 10000);
@@ -1052,6 +1054,7 @@ static const struct rockchip_pmu_info rk3036_pmu = {
 	.req_offset = 0x148,
 	.idle_offset = 0x14c,
 	.ack_offset = 0x14c,
+	.ack_acknowledge = true,
 
 	.num_domains = ARRAY_SIZE(rk3036_pm_domains),
 	.domain_info = rk3036_pm_domains,
