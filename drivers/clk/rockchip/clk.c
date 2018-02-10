@@ -392,6 +392,74 @@ static struct clk *rockchip_clk_register_factor_branch(const char *name,
 	return clk;
 }
 
+struct rockchip_clock_mux_node {
+	u8 parent_index;
+	struct clk_hw hw;
+	struct clk *mux;
+	struct clk *parent;
+};
+
+#define to_clk_mux_node(_hw) container_of(_hw, struct rockchip_clock_mux_node, hw)
+
+static int clock_mux_node_enable(struct clk_hw *hw)
+{
+	int ret = 0;
+	struct rockchip_clock_mux_node *node = to_clk_mux_node(hw);
+
+	ret = clk_set_parent(node->mux, node->parent);
+	if (ret) {
+		pr_err("%s: set parent to %s error %d",
+		       __func__, __clk_get_name(node->parent),
+		       ret);
+	}
+	return ret;
+}
+
+const struct clk_ops clk_mux_select_ops = {
+	.enable = clock_mux_node_enable,
+};
+
+static struct clk *rockchip_clk_register_select_branch(const char *name,
+		const char *mux_name, const char *parent_name,
+		unsigned long flags)
+{
+	struct rockchip_clock_mux_node *node = NULL;
+	struct clk *clk = NULL;
+	struct clk_init_data init;
+
+	node = kzalloc(sizeof(*node), GFP_KERNEL);
+	if (!node)
+		return ERR_PTR(-ENOMEM);
+
+	init.name = name;
+	init.flags = flags;
+	init.parent_names = &mux_name;
+	init.num_parents = 1;
+	init.ops = &clk_mux_select_ops;
+
+	node->hw.init = &init;
+	node->mux = __clk_lookup(mux_name);
+	if (!node->mux) {
+		pr_err("%s: can't lookup the mux clock %s\n",
+		       __func__, mux_name);
+		goto free_clk;
+	}
+
+	node->parent = __clk_lookup(parent_name);
+	if (!node->parent) {
+		pr_err("%s: can't lookup the parent clock %s\n",
+		       __func__, parent_name);
+		goto free_clk;
+	}
+
+	clk = clk_register(NULL, &node->hw);
+free_clk:
+	if (IS_ERR(clk))
+		kfree(node);
+
+	return clk;
+}
+
 struct rockchip_clk_provider * __init rockchip_clk_init(struct device_node *np,
 			void __iomem *base, unsigned long nr_clks)
 {
@@ -598,6 +666,11 @@ void __init rockchip_clk_register_branches(
 				list->mux_width, list->div_shift,
 				list->div_width, list->div_flags,
 				ctx->reg_base);
+			break;
+		case branch_mux_select:
+			clk = rockchip_clk_register_select_branch(
+				list->name, list->parent_names[0],
+				list->parent_names[1], list->flags);
 			break;
 		}
 

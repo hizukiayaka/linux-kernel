@@ -463,6 +463,7 @@ enum rockchip_clk_branch_type {
 	branch_factor,
 	branch_ddrc,
 	branch_half_divider,
+	branch_mux_select,
 };
 
 struct rockchip_clk_branch {
@@ -906,6 +907,16 @@ struct rockchip_clk_branch {
 		.div_width	= w,				\
 		.div_flags	= df,				\
 		.gate_offset	= -1,				\
+	}
+
+#define MUX_SELECT(_id, cname, mname, pname,  f)		\
+	{							\
+		.id		= _id,				\
+		.branch_type	= branch_mux_select,		\
+		.name		= cname,			\
+		.parent_names	= (const char *[]){ mname, pname },	\
+		.num_parents	= 2,				\
+		.flags		= f,				\
 	}
 
 struct rockchip_clk_provider *rockchip_clk_init(struct device_node *np,
