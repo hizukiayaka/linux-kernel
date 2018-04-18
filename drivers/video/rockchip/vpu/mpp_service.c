@@ -1,7 +1,6 @@
-/**
- * Copyright (C) 2016 Fuzhou Rockchip Electronics Co., Ltd
- * author: chenhengming chm@rock-chips.com
- *	   Alpha Lin, alpha.lin@rock-chips.com
+// SPDX-License-Identifier: GPL-2.0-or-later
+/*
+ * Copyright (C) 2016 - 2017 Fuzhou Rockchip Electronics Co., Ltd
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -16,174 +15,141 @@
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
+#include <linux/completion.h>
 #include <linux/delay.h>
 #include <linux/module.h>
 #include <linux/of_platform.h>
+#include <linux/slab.h>
 
 #include "mpp_dev_common.h"
 #include "mpp_service.h"
 
-void mpp_srv_lock(struct mpp_service *pservice)
-{
-	mutex_lock(&pservice->lock);
-}
-EXPORT_SYMBOL(mpp_srv_lock);
+struct mpp_service {
+	/* service critical time lock */
+	struct completion running;
+	struct mpp_task *cur_task;
 
-void mpp_srv_unlock(struct mpp_service *pservice)
-{
-	mutex_unlock(&pservice->lock);
-}
-EXPORT_SYMBOL(mpp_srv_unlock);
+	u32 dev_cnt;
+	struct list_head subdev_list;
+};
+
+struct mpp_service_node {
+	/* node structure global lock */
+	struct mutex lock;
+	struct mpp_service *parent;
+	struct list_head pending;
+};
 
 /* service queue schedule */
-void mpp_srv_pending_locked(struct mpp_service *pservice,
-			    struct mpp_ctx *ctx)
+void mpp_srv_push_pending(struct mpp_service_node *node, struct mpp_task *task)
 {
-	mpp_srv_lock(pservice);
-
-	list_add_tail(&ctx->status_link, &pservice->pending);
-
-	mpp_srv_unlock(pservice);
+	mutex_lock(&node->lock);
+	list_add_tail(&task->service_link, &node->pending);
+	mutex_unlock(&node->lock);
 }
-EXPORT_SYMBOL(mpp_srv_pending_locked);
+EXPORT_SYMBOL(mpp_srv_push_pending);
 
-void mpp_srv_run(struct mpp_service *pservice)
+struct mpp_task *mpp_srv_get_pending_task(struct mpp_service_node *node)
 {
-	struct mpp_ctx *ctx = mpp_srv_get_pending_ctx(pservice);
+	struct mpp_task *task = NULL;
 
-	list_del_init(&ctx->status_link);
-	list_add_tail(&ctx->status_link, &pservice->running);
+	mutex_lock(&node->lock);
+	if (!list_empty(&node->pending)) {
+		task = list_first_entry(&node->pending, struct mpp_task,
+					service_link);
+		list_del_init(&task->service_link);
+	}
+	mutex_unlock(&node->lock);
+
+	return task;
 }
-EXPORT_SYMBOL(mpp_srv_run);
+EXPORT_SYMBOL(mpp_srv_get_pending_task);
 
-void mpp_srv_done(struct mpp_service *pservice)
+int mpp_srv_is_running(struct mpp_service_node *node)
 {
-	struct mpp_ctx *ctx = list_entry(pservice->running.next,
-					 struct mpp_ctx, status_link);
+	struct mpp_service *pservice = node->parent;
 
-	list_del_init(&ctx->session_link);
-	list_add_tail(&ctx->session_link, &ctx->session->done);
-
-	list_del_init(&ctx->status_link);
-	list_add_tail(&ctx->status_link, &pservice->done);
-
-	wake_up(&ctx->session->wait);
-}
-EXPORT_SYMBOL(mpp_srv_done);
-
-struct mpp_ctx *mpp_srv_get_pending_ctx(struct mpp_service *pservice)
-{
-	return list_entry(pservice->pending.next, struct mpp_ctx, status_link);
-}
-EXPORT_SYMBOL(mpp_srv_get_pending_ctx);
-
-struct mpp_ctx *mpp_srv_get_current_ctx(struct mpp_service *pservice)
-{
-	return list_entry(pservice->running.next, struct mpp_ctx, status_link);
-}
-EXPORT_SYMBOL(mpp_srv_get_current_ctx);
-
-struct mpp_ctx *mpp_srv_get_last_running_ctx(struct mpp_service *pservice)
-{
-	return list_entry(pservice->running.prev, struct mpp_ctx, status_link);
-}
-EXPORT_SYMBOL(mpp_srv_get_last_running_ctx);
-
-struct mpp_session *mpp_srv_get_current_session(struct mpp_service *pservice)
-{
-	struct mpp_ctx *ctx = list_entry(pservice->running.next,
-					 struct mpp_ctx, status_link);
-	return ctx ? ctx->session : NULL;
-}
-EXPORT_SYMBOL(mpp_srv_get_current_session);
-
-struct mpp_ctx *mpp_srv_get_done_ctx(struct mpp_session *session)
-{
-	return list_entry(session->done.next, struct mpp_ctx, session_link);
-}
-EXPORT_SYMBOL(mpp_srv_get_done_ctx);
-
-bool mpp_srv_pending_is_empty(struct mpp_service *pservice)
-{
-	return !!list_empty(&pservice->pending);
-}
-EXPORT_SYMBOL(mpp_srv_pending_is_empty);
-
-void mpp_srv_attach(struct mpp_service *pservice, struct list_head *elem)
-{
-	INIT_LIST_HEAD(elem);
-	list_add_tail(elem, &pservice->subdev_list);
-	pservice->dev_cnt++;
-}
-EXPORT_SYMBOL(mpp_srv_attach);
-
-void mpp_srv_detach(struct mpp_service *pservice, struct list_head *elem)
-{
-	list_del_init(elem);
-	pservice->dev_cnt--;
-}
-EXPORT_SYMBOL(mpp_srv_detach);
-
-bool mpp_srv_is_running(struct mpp_service *pservice)
-{
-	return !list_empty(&pservice->running);
+	return !try_wait_for_completion(&pservice->running);
 }
 EXPORT_SYMBOL(mpp_srv_is_running);
 
+void mpp_srv_wait_to_run(struct mpp_service_node *node, struct mpp_task *task)
+{
+	struct mpp_service *pservice = node->parent;
+
+	wait_for_completion(&pservice->running);
+	pservice->cur_task = task;
+}
+EXPORT_SYMBOL(mpp_srv_wait_to_run);
+
+struct mpp_task *mpp_srv_get_cur_task(struct mpp_service_node *node)
+{
+	struct mpp_service *pservice = node->parent;
+
+	return pservice->cur_task;
+}
+EXPORT_SYMBOL(mpp_srv_get_cur_task);
+
+void mpp_srv_done(struct mpp_service_node *node, struct mpp_task *task)
+{
+	struct mpp_service *pservice = node->parent;
+
+	pservice->cur_task = NULL;
+	complete(&pservice->running);
+}
+EXPORT_SYMBOL(mpp_srv_done);
+
+int mpp_srv_abort(struct mpp_service_node *node, struct mpp_task *task)
+{
+	struct mpp_service *pservice = node->parent;
+
+	if (task) {
+		if (pservice->cur_task == task)
+			pservice->cur_task = NULL;
+	}
+	complete(&pservice->running);
+
+	return 0;
+}
+EXPORT_SYMBOL(mpp_srv_abort);
+
+void *mpp_srv_attach(struct mpp_service *pservice, void *data)
+{
+	struct mpp_service_node *node = NULL;
+
+	node = kzalloc(sizeof(*node), GFP_KERNEL);
+	if (!node)
+		return node;
+
+	node->parent = pservice;
+	mutex_init(&node->lock);
+	INIT_LIST_HEAD(&node->pending);
+
+	return node;
+}
+EXPORT_SYMBOL(mpp_srv_attach);
+
+void mpp_srv_detach(struct mpp_service_node *node)
+{
+	kfree(node);
+}
+EXPORT_SYMBOL(mpp_srv_detach);
+
 static void mpp_init_drvdata(struct mpp_service *pservice)
 {
-	INIT_LIST_HEAD(&pservice->pending);
-	mutex_init(&pservice->lock);
-
-	INIT_LIST_HEAD(&pservice->done);
-	INIT_LIST_HEAD(&pservice->session);
-	INIT_LIST_HEAD(&pservice->subdev_list);
-	INIT_LIST_HEAD(&pservice->running);
+	init_completion(&pservice->running);
+	complete(&pservice->running);
 }
-
-#if defined(CONFIG_OF)
-static const struct of_device_id mpp_service_dt_ids[] = {
-	{ .compatible = "rockchip,mpp_service", },
-	{ },
-};
-#endif
 
 static int mpp_probe(struct platform_device *pdev)
 {
-	int ret = 0;
-	struct resource *res = NULL;
 	struct device *dev = &pdev->dev;
-	struct device_node *np = pdev->dev.of_node;
-	struct mpp_service *pservice =
-				       devm_kzalloc(dev, sizeof(*pservice),
+	struct mpp_service *pservice = devm_kzalloc(dev, sizeof(*pservice),
 						    GFP_KERNEL);
-
-	dev_info(dev, "%s enter\n", __func__);
-
-	pservice->dev = dev;
+	if (!pservice)
+		return -ENOMEM;
 
 	mpp_init_drvdata(pservice);
-
-	if (of_property_read_bool(np, "reg")) {
-		res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-
-		pservice->reg_base = devm_ioremap_resource(pservice->dev, res);
-		if (IS_ERR(pservice->reg_base)) {
-			dev_err(dev, "ioremap registers base failed\n");
-			ret = PTR_ERR(pservice->reg_base);
-			pservice->reg_base = 0;
-		}
-	} else {
-		pservice->reg_base = 0;
-	}
-
-	pservice->cls = class_create(THIS_MODULE, dev_name(dev));
-
-	if (IS_ERR(pservice->cls)) {
-		ret = PTR_ERR(pservice->cls);
-		dev_err(dev, "class_create err:%d\n", ret);
-		return -1;
-	}
 
 	platform_set_drvdata(pdev, pservice);
 	dev_info(dev, "init success\n");
@@ -193,21 +159,20 @@ static int mpp_probe(struct platform_device *pdev)
 
 static int mpp_remove(struct platform_device *pdev)
 {
-	struct mpp_service *pservice = platform_get_drvdata(pdev);
-
-	class_destroy(pservice->cls);
 	return 0;
 }
+
+static const struct of_device_id mpp_service_dt_ids[] = {
+	{ .compatible = "rockchip,mpp-service", },
+	{ },
+};
 
 static struct platform_driver mpp_driver = {
 	.probe = mpp_probe,
 	.remove = mpp_remove,
 	.driver = {
 		.name = "mpp",
-		.owner = THIS_MODULE,
-#if defined(CONFIG_OF)
 		.of_match_table = of_match_ptr(mpp_service_dt_ids),
-#endif
 	},
 };
 
@@ -216,13 +181,17 @@ static int __init mpp_service_init(void)
 	int ret = platform_driver_register(&mpp_driver);
 
 	if (ret) {
-		mpp_err("Platform device register failed (%d).\n", ret);
+		pr_err("Platform device register failed (%d).\n", ret);
 		return ret;
 	}
 
 	return ret;
 }
 
-subsys_initcall(mpp_service_init);
-MODULE_LICENSE("GPL");
+static void __exit mpp_service_exit(void)
+{
+}
 
+module_init(mpp_service_init);
+module_exit(mpp_service_exit)
+MODULE_LICENSE("GPL");
