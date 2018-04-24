@@ -1,0 +1,59 @@
+Device-Tree bindings for Rockchip VPU Encoder/Decoder.
+
+Required properties:
+- compatible: There are several encoder/decoder IP inside rockchip chips.
+	The value should be one of "rockchip,vpu-decoder-v1",
+	"rockchip,vpu-decoder-v2", "rockchip,vpu-decoder-pp-v1",
+	"rockchip,avs-decoder-v1", "rockchip,vpu-encoder-v1",
+	"rockchip,vpu-encoder-v2".
+
+- reg: physical base address of the controller and length
+
+- clocks: must include clock specifiers corresponding to entries in the
+        clock-names property.
+
+- clock-names: from common clock binding:
+	       Required elements: "aclk_vcodec", "hclk_vcodec",	"clk_core".
+
+- resets : a list of phandle + reset specifier pairs
+
+- reset-names : string reset name, must be:
+		"video_a", "video_h", "video_core".
+
+- power-domains : power-domain property defined with a phandle
+		  to respective power domain.
+
+Example:
+
+DT entry:
+	vepu: video-encoder@ff9a0000 {
+		compatible = "rockchip,vpu-encoder-v1";
+		reg = <0x0 0xff9a0000 0x0 0x400>;
+		interrupts = <GIC_SPI 9 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "irq_enc";
+		clocks = <&cru ACLK_VCODEC>, <&cru HCLK_VCODEC>;
+		clock-names = "aclk_vcodec", "hclk_vcodec";
+		power-domains = <&power RK3288_PD_VIDEO>;
+		resets = <&cru SRST_VCODEC_AXI>, <&cru SRST_VCODEC_AHB>;
+		reset-names = "video_a", "video_h";
+		rockchip,srv = <&vpu_service>;
+		iommus = <&vpu_mmu>;
+		status = "disabled";
+	};
+
+	vdpu: video-decoder@ff9a0400 {
+		compatible = "rockchip,vpu-decoder-pp-v1";
+		reg = <0x0 0xff9a0400 0x0 0x400>;
+		interrupts = <GIC_SPI 10 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "irq_dec";
+		clocks = <&cru ACLK_VCODEC>, <&cru HCLK_VCODEC>;
+		clock-names = "aclk_vcodec", "hclk_vcodec";
+		assigned-clocks = <&cru ACLK_VCODEC>, <&cru HCLK_VCODEC>;
+		assigned-clock-rates = <300000000>, <75000000>;
+		power-domains = <&power RK3288_PD_VIDEO>;
+		resets = <&cru SRST_VCODEC_AXI>, <&cru SRST_VCODEC_AHB>;
+		reset-names = "video_a", "video_h";
+		rockchip,srv = <&vpu_service>;
+		iommus = <&vpu_mmu>;
+		status = "disabled";
+	};

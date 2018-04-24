@@ -1,0 +1,13 @@
+Device-Tree bindings for Rockchip virtual media service.
+================================
+
+Required properties:
+- compatible: must be "rockchip,mpp-service"
+
+Example:
+
+DT entry:
+	rkvdec_srv: rkvdec-srv {
+		compatible = "rockchip,mpp-service";
+		status = "disabled";
+	};

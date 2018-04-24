@@ -1,8 +1,8 @@
-Device-Tree bindings for Rockchip Encoder.
+Device-Tree bindings for Rockchip Decoder.
 
 Required properties:
 - compatible: There are several encoder IP inside rockchip chips. The value
-	should be one of "rockchip,video-encoder-v1", "rockchip,hevc-encoder-v1"
+	should be one of "rockchip,video-decoder-v1", "rockchip,hevc-decoder-v1"
 
 - reg: physical base address of the controller and length
 
@@ -25,9 +25,9 @@ Required properties:
 Example:
 
 DT entry:
-	rkvenc: rkvdec@ff36000 {
-		compatible = "rockchip,video-encoder-v1";
-		reg = <0xff360000 0x400>;
+	rkvdec: rkvdec@ff36000 {
+		compatible = "rockchip,video-decoder-v1";
+		reg = <0x0 0xff360000 0x0 0x400>;
 		interrupts = <GIC_SPI 7 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-names = "irq_dec";
 		clocks = <&cru ACLK_RKVDEC>, <&cru HCLK_RKVDEC>,
@@ -39,8 +39,8 @@ DT entry:
 			<&cru SRST_VDEC_CABAC>, <&cru SRST_VDEC_CORE>;
 		reset-names = "video_a", "video_h", "niu_a", "niu_h",
 			"video_cabac", "video_core";
-		iommus = <&rkenc_mmu>;
-		power-domains = <&power RK1108_PD_VIDEO>;
-		rockchip,srv = <&rkvenc_srv>;
+		iommus = <&rkvdec_mmu>;
+		power-domains = <&power RK3328_PD_VIDEO>;
+		rockchip,srv = <&rkvdec_srv>;
 		status = "disabled";
 	};
