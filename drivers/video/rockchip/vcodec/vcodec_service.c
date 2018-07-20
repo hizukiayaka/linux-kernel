@@ -98,8 +98,10 @@
 #define MHZ					(1000 * 1000)
 #define SIZE_REG(reg)				((reg) * 4)
 
+#define IOMMU_GET_BUS_ID(x)			(((x) >> 6) & 0x1f)
+#define IOMMU_PAGE_SIZE				SZ_4K
+
 #define VCODEC_CLOCK_ENABLE			1
-#define IOMMU_PAGE_SIZE				4096
 #define EXTRA_INFO_MAGIC			0x4C4A46
 
 #define RK3328_VCODEC_RATE_ON			(500 * MHZ)
@@ -326,6 +328,9 @@ struct vpu_subdev_data {
 	u32 reg_size;
 
 	struct vcodec_iommu_info *iommu_info;
+
+	unsigned long aux_iova;
+	struct page *aux_page;
 
 	struct work_struct set_work;
 };
@@ -2354,6 +2359,98 @@ static void vcodec_set_freq_rk322x(struct vpu_service_info *pservice,
 	}
 }
 
+static int
+_vcodec_page_fault_hdl(struct device *dev, unsigned long iova, int status)
+{
+	struct platform_device *pdev = NULL;
+	struct vpu_service_info *pservice = NULL;
+	struct vpu_subdev_data *data = NULL;
+	int ret = -EIO;
+
+	vpu_debug_enter();
+
+	if (!dev) {
+		pr_err("invalid NULL dev\n");
+		ret = -ENXIO;
+		goto done;
+	}
+
+	pdev = container_of(dev, struct platform_device, dev);
+	if (!pdev) {
+		pr_err("invalid NULL platform_device\n");
+		ret = -ENXIO;
+		goto done;
+	}
+
+	data = platform_get_drvdata(pdev);
+	if (!data) {
+		pr_err("invalid NULL vpu_subdev_data\n");
+		ret = -ENXIO;
+		goto done;
+	}
+
+	pservice = data->pservice;
+	if (!pservice) {
+		pr_err("invalid NULL vpu_service_info\n");
+		ret = -ENXIO;
+		goto done;
+	}
+
+	if (pservice->reg_codec) {
+		struct vpu_reg *reg = pservice->reg_codec;
+
+		dev_err(dev, "vcodec, fault addr 0x%08lx status %x\n", iova,
+			status);
+
+		if (list_empty(&reg->mem_region_list)) {
+			dev_err(dev, "no memory region mapped\n");
+			ret = -EPERM;
+			goto done;
+		}
+
+		if (IOMMU_GET_BUS_ID(status) == 2) {
+			unsigned long page_iova = 0;
+		/* avoid another page fault occur after page fault */
+			if (data->aux_iova != 0)
+				iommu_unmap(data->iommu_info->domain,
+					    data->aux_iova, IOMMU_PAGE_SIZE);
+
+			/* get the page align iova */
+			page_iova = round_down(iova, IOMMU_PAGE_SIZE);
+			ret = iommu_map(data->iommu_info->domain, page_iova,
+					page_to_phys(data->aux_page),
+					IOMMU_PAGE_SIZE, DMA_FROM_DEVICE);
+			if (!ret)
+				data->aux_iova = page_iova;
+		} else {
+			int i = 0;
+			struct vcodec_mem_region *mem = NULL, *n = NULL;
+
+			list_for_each_entry_safe(mem, n, &reg->mem_region_list,
+						 reg_lnk) {
+				unsigned long tmp_iova = mem->iova;
+
+				dev_err(dev, "vcodec, reg[%3d] mem region [%02d] 0x%lx %lx\n",
+					mem->reg_idx, i, tmp_iova, mem->len);
+				i++;
+			}
+			ret = -EFAULT;
+		}
+	}
+
+done:
+	return ret;
+}
+
+static int vcodec_iommu_fault_hdl(struct iommu_domain *iommu,
+				  struct device *iommu_dev,
+				  unsigned long iova, int status, void *arg)
+{
+	struct device *dev = (struct device *)arg;
+
+	return _vcodec_page_fault_hdl(dev, iova, status);
+}
+
 static void vcodec_reduce_freq_rk322x(struct vpu_service_info *pservice)
 {
 	if (list_empty(&pservice->running)) {
@@ -2563,6 +2660,17 @@ static int vcodec_subdev_probe(struct platform_device *pdev,
 		dev_err(dev, "loading iommu failed %ld",
 			 PTR_ERR(data->iommu_info));
 
+	data->aux_page = alloc_page(GFP_KERNEL);
+	if (!data->aux_page) {
+		dev_err(dev, "can't allocate a page for auxiliary usage\n");
+		goto err;
+	}
+	data->aux_iova = 0;
+
+	if (!IS_ERR_OR_NULL(data->iommu_info))
+		iommu_set_fault_handler(data->iommu_info->domain,
+					vcodec_iommu_fault_hdl, dev);
+
 	vcodec_enter_mode(data);
 	ret = vpu_service_check_hw(data);
 	if (ret < 0) {
@@ -2683,6 +2791,7 @@ static void vcodec_subdev_remove(struct platform_device *pdev)
 	vpu_service_power_off(pservice);
 	mutex_unlock(&pservice->lock);
 
+	__free_page(data->aux_page);
 	vcodec_iommu_remove(data->iommu_info);
 	data->iommu_info = NULL;
 
@@ -3540,6 +3649,10 @@ static irqreturn_t vdpu_isr(int irq, void *dev_id)
 		if (!pservice->reg_codec) {
 			vpu_err("error: dec isr with no task waiting\n");
 		} else {
+			if (data->aux_iova != 0)
+				iommu_unmap(data->iommu_info->domain,
+					    data->aux_iova, IOMMU_PAGE_SIZE);
+
 			reg_from_run_to_done(data, pservice->reg_codec);
 			/* avoid vpu timeout and can't recover problem */
 			vpu_soft_reset(data);
