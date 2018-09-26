@@ -17,9 +17,14 @@
 #ifndef __VCODEC_IOMMU_DMA_H__
 #define __VCODEC_IOMMU_DMA_H__
 
+#include <linux/iommu.h>
 #include <linux/dma-mapping.h>
 
-struct mpp_iommu_info;
+struct mpp_iommu_info {
+	struct iommu_domain *domain;
+	struct iommu_group *group;
+};
+
 struct mpp_dma_session;
 
 struct mpp_dma_session *mpp_dma_session_create(struct device *dev);

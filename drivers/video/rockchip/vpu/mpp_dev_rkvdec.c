@@ -19,14 +19,20 @@
 #include <linux/module.h>
 #include <linux/types.h>
 #include <linux/of_platform.h>
+#include <linux/rockchip/rockchip_sip.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <soc/rockchip/pm_domains.h>
 
 #include "mpp_debug.h"
 #include "mpp_dev_common.h"
+#include "mpp_iommu_dma.h"
 
 #define RKVDEC_DRIVER_NAME		"mpp_rkvdec"
+
+#define RKVDEC_VER_RK3328_BIT		BIT(1)
+#define IOMMU_GET_BUS_ID(x)		(((x) >> 6) & 0x1f)
+#define IOMMU_PAGE_SIZE			SZ_4K
 
 #define RKVDEC_NODE_NAME		"rkvdec"
 #define RK_HEVCDEC_NODE_NAME		"hevc-service"
@@ -106,6 +112,9 @@ struct rockchip_rkvdec_dev {
 
 	enum RKVDEC_STATE state;
 
+	unsigned long aux_iova;
+	struct page *aux_page;
+
 	void *current_task;
 };
 
@@ -162,12 +171,22 @@ static const struct mpp_dev_variant rkvdec_v1_data = {
 	.reg_len = 76,
 	.trans_info = trans_rkvdec,
 	.node_name = RKVDEC_NODE_NAME,
+	.version_bit = BIT(0),
 };
+
+static const struct mpp_dev_variant rkvdec_v1p_data = {
+	.reg_len = 76,
+	.trans_info = trans_rkvdec,
+	.node_name = RKVDEC_NODE_NAME,
+	.version_bit = RKVDEC_VER_RK3328_BIT,
+};
+
 
 static const struct mpp_dev_variant rk_hevcdec_data = {
 	.reg_len = 48,
 	.trans_info = trans_rk_hevcdec,
 	.node_name = RK_HEVCDEC_NODE_NAME,
+	.version_bit = BIT(0),
 };
 
 static void *rockchip_rkvdec_get_drv_data(struct platform_device *pdev);
@@ -669,6 +688,62 @@ static int rockchip_mpp_rkvdec_reset(struct rockchip_mpp_dev *mpp_dev)
 	return 0;
 }
 
+static int rockchip_mpp_rkvdec_sip_reset(struct rockchip_mpp_dev *mpp_dev)
+{
+#ifdef CONFIG_ROCKCHIP_SIP
+	sip_smc_vpu_reset(0, 0, 0);
+#else
+	return rockchip_mpp_rkvdec_reset(mpp_dev);
+#endif
+	return 0;
+}
+
+static int rkvdec_rk3328_iommu_hdl(struct iommu_domain *iommu,
+				   struct device *iommu_dev, unsigned long iova,
+				   int status, void *arg)
+{
+	struct device *dev = (struct device *)arg;
+	struct platform_device *pdev = NULL;
+	struct rockchip_rkvdec_dev *dec_dev = NULL;
+	struct rockchip_mpp_dev *mpp_dev = NULL;
+
+	int ret = -EIO;
+
+	pdev = container_of(dev, struct platform_device, dev);
+	if (!pdev) {
+		dev_err(dev, "invalid platform_device\n");
+		ret = -ENXIO;
+		goto done;
+	}
+
+	dec_dev = platform_get_drvdata(pdev);
+	if (!dec_dev) {
+		dev_err(dev, "invalid device instance\n");
+		ret = -ENXIO;
+		goto done;
+	}
+	mpp_dev = &dec_dev->mpp_dev;
+
+	if (IOMMU_GET_BUS_ID(status) == 2) {
+		unsigned long page_iova = 0;
+
+		/* avoid another page fault occur after page fault */
+		if (dec_dev->aux_iova != 0)
+			iommu_unmap(mpp_dev->iommu_info->domain,
+				    dec_dev->aux_iova, IOMMU_PAGE_SIZE);
+
+		page_iova = round_down(iova, IOMMU_PAGE_SIZE);
+		ret = iommu_map(mpp_dev->iommu_info->domain, page_iova,
+				page_to_phys(dec_dev->aux_page),
+				IOMMU_PAGE_SIZE, DMA_FROM_DEVICE);
+		if (!ret)
+			dec_dev->aux_iova = page_iova;
+	}
+
+done:
+	return ret;
+}
+
 static struct mpp_dev_ops rkvdec_ops = {
 	.alloc_task = rockchip_mpp_rkvdec_alloc_task,
 	.prepare = rockchip_mpp_rkvdec_prepare,
@@ -677,6 +752,16 @@ static struct mpp_dev_ops rkvdec_ops = {
 	.result = rockchip_mpp_rkvdec_result,
 	.free_task = rockchip_mpp_rkvdec_free_task,
 	.reset = rockchip_mpp_rkvdec_reset,
+};
+
+static struct mpp_dev_ops rkvdec_rk3328_ops = {
+	.alloc_task = rockchip_mpp_rkvdec_alloc_task,
+	.prepare = rockchip_mpp_rkvdec_prepare,
+	.run = rockchip_mpp_rkvdec_run,
+	.finish = rockchip_mpp_rkvdec_finish,
+	.result = rockchip_mpp_rkvdec_result,
+	.free_task = rockchip_mpp_rkvdec_free_task,
+	.reset = rockchip_mpp_rkvdec_sip_reset,
 };
 
 static int rockchip_mpp_rkvdec_probe(struct platform_device *pdev)
@@ -693,7 +778,23 @@ static int rockchip_mpp_rkvdec_probe(struct platform_device *pdev)
 
 	mpp_dev = &dec_dev->mpp_dev;
 	mpp_dev->variant = rockchip_rkvdec_get_drv_data(pdev);
-	ret = mpp_dev_common_probe(mpp_dev, pdev, &rkvdec_ops);
+
+	if (mpp_dev->variant->version_bit & RKVDEC_VER_RK3328_BIT) {
+		ret = mpp_dev_common_probe(mpp_dev, pdev, &rkvdec_rk3328_ops);
+
+		dec_dev->aux_page = alloc_page(GFP_KERNEL);
+		if (!dec_dev->aux_page) {
+			dev_err(dev,
+				"can't allocate a page for auxiliary usage\n");
+			return ret;
+		}
+		dec_dev->aux_iova = 0;
+
+		iommu_set_fault_handler(mpp_dev->iommu_info->domain,
+					rkvdec_rk3328_iommu_hdl, dev);
+	} else {
+		ret = mpp_dev_common_probe(mpp_dev, pdev, &rkvdec_ops);
+	}
 	if (ret)
 		return ret;
 
@@ -729,6 +830,7 @@ static int rockchip_mpp_rkvdec_remove(struct platform_device *pdev)
 }
 
 static const struct of_device_id mpp_rkvdec_dt_match[] = {
+	{ .compatible = "rockchip,video-decoder-v1p", .data = &rkvdec_v1p_data},
 	{ .compatible = "rockchip,video-decoder-v1", .data = &rkvdec_v1_data},
 	{ .compatible = "rockchip,hevc-decoder-v1", .data = &rk_hevcdec_data},
 	{},

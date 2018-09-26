@@ -44,11 +44,6 @@ struct mpp_dma_buffer {
 	struct rcu_head rcu;
 };
 
-struct mpp_iommu_info {
-	struct iommu_domain *domain;
-	struct iommu_group *group;
-};
-
 struct mpp_dma_session {
 	struct list_head buffer_list;
 	/* the mutex for the above buffer list */

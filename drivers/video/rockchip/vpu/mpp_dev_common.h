@@ -50,6 +50,7 @@ struct mpp_dev_variant {
 	u32 reg_len;
 	struct mpp_trans_info *trans_info;
 	const char *node_name;
+	u32 version_bit;
 };
 
 struct mpp_mem_region {
