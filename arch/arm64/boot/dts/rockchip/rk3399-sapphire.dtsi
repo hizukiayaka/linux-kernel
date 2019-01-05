@@ -631,6 +631,35 @@
 	dr_mode = "host";
 };
 
+&rkvdec {
+	status = "okay";
+};
+
+&rkvdec_srv {
+	status = "okay";
+};
+
+&vdec_mmu {
+	status = "okay";
+};
+
+&vdpu {
+	status = "okay";
+};
+
+&vepu {
+	status = "okay";
+};
+
+&vpu_service {
+	status = "okay";
+};
+
+&vpu_mmu {
+	status = "okay";
+
+};
+
 &vopb {
 	status = "okay";
 };
