@@ -124,7 +124,7 @@ struct mpp_task {
 	struct work_struct work;
 
 	/* record context running start time */
-	struct timeval start;
+	struct timespec64 start;
 };
 
 /*
