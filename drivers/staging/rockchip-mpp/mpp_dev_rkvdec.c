@@ -19,10 +19,10 @@
 #include <linux/module.h>
 #include <linux/types.h>
 #include <linux/of_platform.h>
-#include <linux/rockchip/rockchip_sip.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <soc/rockchip/pm_domains.h>
+#include <soc/rockchip/rockchip_sip.h>
 
 #include "mpp_debug.h"
 #include "mpp_dev_common.h"
@@ -230,8 +230,7 @@ static int fill_scaling_list_pps(struct rkvdec_task *task, int fd, int offset,
 		return -ENOENT;
 	}
 
-	ret = dma_buf_begin_cpu_access(dmabuf, 0, dmabuf->size,
-				       DMA_FROM_DEVICE);
+	ret = dma_buf_begin_cpu_access(dmabuf, DMA_FROM_DEVICE);
 	if (ret) {
 		dev_err(dev, "can't access the pps buffer\n");
 		goto done;
@@ -277,7 +276,7 @@ static int fill_scaling_list_pps(struct rkvdec_task *task, int fd, int offset,
 
 done:
 	dma_buf_vunmap(dmabuf, vaddr);
-	dma_buf_end_cpu_access(dmabuf, 0, dmabuf->size, DMA_FROM_DEVICE);
+	dma_buf_end_cpu_access(dmabuf, DMA_FROM_DEVICE);
 	dma_buf_put(dmabuf);
 
 	return ret;

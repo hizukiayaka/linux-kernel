@@ -937,18 +937,18 @@ EXPORT_SYMBOL(mpp_dev_read);
 void mpp_debug_time_record(struct mpp_task *task)
 {
 	if (unlikely(debug & DEBUG_TIMING) && task)
-		do_gettimeofday(&task->start);
+		getboottime64(&task->start);
 }
 EXPORT_SYMBOL(mpp_debug_time_record);
 
 void mpp_debug_time_diff(struct mpp_task *task)
 {
-	struct timeval end;
+	struct timespec64 end;
 
-	do_gettimeofday(&end);
-	mpp_debug(DEBUG_TIMING, "time: %ld us\n",
-		  (end.tv_sec  - task->start.tv_sec)  * 1000000 +
-		  (end.tv_usec - task->start.tv_usec));
+	getboottime64(&end);
+	mpp_debug(DEBUG_TIMING, "time: %lld ms\n",
+		  (end.tv_sec  - task->start.tv_sec)  * 1000 +
+		  (end.tv_nsec - task->start.tv_nsec) / 1000000);
 }
 EXPORT_SYMBOL(mpp_debug_time_diff);
 

@@ -330,9 +330,8 @@ static int rockchip_mpp_rkvepu_assign_reset(struct rockchip_rkvepu_dev *enc_dev)
 {
 	struct rockchip_mpp_dev *mpp_dev = &enc_dev->mpp_dev;
 
-	/* TODO: use devm_reset_control_get_share() instead */
-	enc_dev->rst_a = devm_reset_control_get(mpp_dev->dev, "video_a");
-	enc_dev->rst_h = devm_reset_control_get(mpp_dev->dev, "video_h");
+	enc_dev->rst_a = devm_reset_control_get_shared(mpp_dev->dev, "video_a");
+	enc_dev->rst_h = devm_reset_control_get_shared(mpp_dev->dev, "video_h");
 
 	if (IS_ERR_OR_NULL(enc_dev->rst_a)) {
 		mpp_err("No aclk reset resource define\n");
