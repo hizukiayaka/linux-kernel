@@ -245,6 +245,14 @@
 	};
 };
 
+&h265e {
+	status = "okay";
+};
+
+&h265e_mmu {
+	status = "okay";
+};
+
 &io_domains {
 	status = "okay";
 
@@ -286,6 +294,18 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&sdmmc0_clk &sdmmc0_cmd &sdmmc0_dectn &sdmmc0_bus4>;
 	vmmc-supply = <&vcc_sd>;
+	status = "okay";
+};
+
+&rkvdec_srv {
+	status = "okay";
+};
+
+&rkvdec {
+	status = "okay";
+};
+
+&rkvdec_mmu {
 	status = "okay";
 };
 
@@ -345,6 +365,18 @@
 };
 
 &usb_host0_ohci {
+	status = "okay";
+};
+
+&vpu_service{
+	status = "okay";
+};
+
+&vdpu {
+	status = "okay";
+};
+
+&vpu_mmu {
 	status = "okay";
 };
 
