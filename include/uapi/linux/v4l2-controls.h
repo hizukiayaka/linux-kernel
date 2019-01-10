@@ -712,6 +712,7 @@ enum v4l2_cid_mpeg_video_hevc_size_of_length_field {
 #define V4L2_CID_MPEG_VIDEO_HEVC_SPS			(V4L2_CID_MPEG_BASE + 645)
 #define V4L2_CID_MPEG_VIDEO_HEVC_PPS			(V4L2_CID_MPEG_BASE + 646)
 #define V4L2_CID_MPEG_VIDEO_HEVC_SLICE_PARAMS		(V4L2_CID_MPEG_BASE + 647)
+#define V4L2_CID_MPEG_VIDEO_HEVC_SCALING_MATRIX		(V4L2_CID_MPEG_BASE + 648)
 
 /*  MPEG-class control IDs specific to the CX2341x driver as defined by V4L2 */
 #define V4L2_CID_MPEG_CX2341X_BASE				(V4L2_CTRL_CLASS_MPEG | 0x1000)
@@ -1402,6 +1403,7 @@ struct v4l2_ctrl_hevc_pps {
 	__u8	lists_modification_present_flag;
 	__u8	log2_parallel_merge_level_minus2;
 	__u8	slice_segment_header_extension_present_flag;
+	__u8	scaling_list_enable_flag;
 };
 
 #define V4L2_HEVC_DPB_ENTRY_RPS_ST_CURR_BEFORE	0x01
@@ -1481,6 +1483,20 @@ struct v4l2_ctrl_hevc_slice_params {
 
 	/* ISO/IEC 23008-2, ITU-T Rec. H.265: Weighted prediction parameter */
 	struct v4l2_hevc_pred_weight_table pred_weight_table;
+
+	__u32	slice_segment_addr;
+	__u32	num_entry_point_offsets;
+	__u32	entry_point_offset_minus1[256];
+	__u8	first_slice_segment_in_pic_flag;
+};
+
+struct v4l2_ctrl_hevc_scaling_matrix {
+	__u8	scaling_list_4x4[6][16];
+	__u8	scaling_list_8x8[6][64];
+	__u8	scaling_list_16x16[6][64];
+	__u8	scaling_list_32x32[2][64];
+	__u8	scaling_list_dc_coef_16x16[6];
+	__u8	scaling_list_dc_coef_32x32[2];
 };
 
 #endif

@@ -1650,6 +1650,7 @@ struct v4l2_ext_control {
 		struct v4l2_ctrl_hevc_sps __user *p_hevc_sps;
 		struct v4l2_ctrl_hevc_pps __user *p_hevc_pps;
 		struct v4l2_ctrl_hevc_slice_params __user *p_hevc_slice_params;
+		struct v4l2_ctrl_hevc_scaling_matrix __user *p_hevc_scaling_matrix;
 		void __user *ptr;
 	};
 } __attribute__ ((packed));
@@ -1705,6 +1706,7 @@ enum v4l2_ctrl_type {
 	V4L2_CTRL_TYPE_HEVC_SPS = 0x0110,
 	V4L2_CTRL_TYPE_HEVC_PPS = 0x0111,
 	V4L2_CTRL_TYPE_HEVC_SLICE_PARAMS = 0x0112,
+	V4L2_CTRL_TYPE_HEVC_SCALING_MATRIX = 0x0113,
 };
 
 /*  Used in the VIDIOC_QUERYCTRL ioctl for querying controls */
