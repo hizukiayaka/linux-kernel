@@ -213,6 +213,18 @@
 	};
 };
 
+&rkvdec {
+	status = "okay";
+};
+
+&rkvdec_mmu {
+	status = "okay";
+};
+
+&rkvdec_srv {
+	status = "okay";
+};
+
 &sdio {
 	bus-width = <4>;
 	cap-sd-highspeed;
@@ -267,5 +279,25 @@
 };
 
 &usb_host0_ohci {
+	status = "okay";
+};
+
+&vdpu {
+	status = "okay";
+};
+
+&vop {
+	status = "okay";
+};
+
+&vop_mmu {
+	status = "okay";
+};
+
+&vpu_mmu {
+	status = "okay";
+};
+
+&vpu_service{
 	status = "okay";
 };

@@ -245,6 +245,14 @@
 	};
 };
 
+&h265e {
+	status = "okay";
+};
+
+&h265e_mmu {
+	status = "okay";
+};
+
 &io_domains {
 	status = "okay";
 
@@ -275,6 +283,18 @@
 			rockchip,pins = <0 RK_PA0 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
+};
+
+&rkvdec {
+	status = "okay";
+};
+
+&rkvdec_mmu {
+	status = "okay";
+};
+
+&rkvdec_srv {
+	status = "okay";
 };
 
 &sdmmc {
@@ -348,10 +368,22 @@
 	status = "okay";
 };
 
+&vdpu {
+	status = "okay";
+};
+
 &vop {
 	status = "okay";
 };
 
 &vop_mmu {
+	status = "okay";
+};
+
+&vpu_mmu {
+	status = "okay";
+};
+
+&vpu_service{
 	status = "okay";
 };

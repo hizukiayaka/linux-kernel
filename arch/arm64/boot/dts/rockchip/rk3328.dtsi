@@ -569,6 +569,27 @@
 		resets = <&cru SRST_GPU_A>;
 	};
 
+	venc_srv: venc-srv {
+		compatible = "rockchip,mpp-service";
+		status = "disabled";
+	};
+
+	h265e: h265e@ff330000 {
+		compatible = "rockchip,hevc-encoder-v1";
+		reg = <0x0 0xff330000 0 0x200>;
+		interrupts = <GIC_SPI 95 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&cru ACLK_H265>, <&cru PCLK_H265>,
+			<&cru SCLK_VENC_CORE>, <&cru SCLK_VENC_DSP>,
+			<&cru ACLK_RKVENC>, <&cru ACLK_AXISRAM>;
+		clock-names = "aclk_h265", "pclk_h265", "clk_core",
+			"clk_dsp", "aclk_venc", "aclk_axi2sram";
+		iommus = <&h265e_mmu>;
+		rockchip,srv = <&venc_srv>;
+		syscon = <&grf 0x040c 0x8000800 0x80000>;
+		power-domains = <&power RK3328_PD_HEVC>;
+		status = "disabled";
+	};
+
 	h265e_mmu: iommu@ff330200 {
 		compatible = "rockchip,iommu";
 		reg = <0x0 0xff330200 0 0x100>;
@@ -580,6 +601,25 @@
 		power-domains = <&power RK3328_PD_HEVC>;
 		status = "disabled";
 	};
+
+	vepu: vepu@ff340000 {
+		compatible = "rockchip,vpu-encoder-v2";
+		reg = <0x0 0xff340000 0x0 0x400>;
+		interrupts = <GIC_SPI 97 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&cru ACLK_H264>, <&cru HCLK_H264>,
+			<&cru SCLK_VENC_CORE>;
+		clock-names = "aclk_vcodec", "hclk_vcodec",
+			"clk_core";
+		resets = <&cru SRST_RKVENC_H264_A>,
+			<&cru SRST_RKVENC_H264_H>;
+		reset-names = "video_a", "video_h";
+		iommus = <&vepu_mmu>;
+		rockchip,srv = <&venc_srv>;
+		syscon = <&grf 0x040c 0x8000800 0x80000>;
+		power-domains = <&power RK3328_PD_HEVC>;
+		status = "disabled";
+	};
+
 
 	vepu_mmu: iommu@ff340800 {
 		compatible = "rockchip,iommu";
@@ -593,6 +633,42 @@
 		status = "disabled";
 	};
 
+
+	vpu_service: vdpu-srv {
+		compatible = "rockchip,mpp-service";
+		status = "disabled";
+	};
+
+	vdpu: vpu-decoder@ff350000 {
+		compatible = "rockchip,vpu-decoder-v2";
+		reg = <0x0 0xff350400 0x0 0x400>;
+		interrupts = <GIC_SPI 9 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "irq_dec";
+		resets = <&cru SRST_VCODEC_A>, <&cru SRST_VCODEC_H>;
+		reset-names = "video_a", "video_h";
+		clocks = <&cru ACLK_VPU>, <&cru HCLK_VPU>;
+		clock-names = "aclk_vcodec", "hclk_vcodec";
+		iommus = <&vpu_mmu>;
+		power-domains = <&power RK3328_PD_VPU>;
+		rockchip,srv = <&vpu_service>;
+		status = "disabled";
+	};
+
+	avsd: avs-decoder@ff351000 {
+		compatible = "rockchip,avs-decoder-v1";
+		reg = <0x0 0xff351000 0x0 0x200>;
+		interrupts = <GIC_SPI 9 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "irq_dec";
+		clocks = <&cru ACLK_VPU>, <&cru HCLK_VPU>;
+		clock-names = "aclk_vcodec", "hclk_vcodec";
+		resets = <&cru SRST_VCODEC_A>, <&cru SRST_VCODEC_H>;
+		reset-names = "video_a", "video_h";
+		power-domains = <&power RK3328_PD_VPU>;
+		iommus = <&vpu_mmu>;
+		rockchip,srv = <&vpu_service>;
+		status = "disabled";
+	};
+
 	vpu_mmu: iommu@ff350800 {
 		compatible = "rockchip,iommu";
 		reg = <0x0 0xff350800 0x0 0x40>;
@@ -602,6 +678,34 @@
 		clock-names = "aclk", "iface";
 		#iommu-cells = <0>;
 		power-domains = <&power RK3328_PD_VPU>;
+		status = "disabled";
+	};
+
+	rkvdec_srv: rkvdec-srv {
+		compatible = "rockchip,mpp-service";
+		status = "disabled";
+	};
+
+	rkvdec: rkvdec@ff36000 {
+		compatible = "rockchip,video-decoder-v1";
+		reg = <0x0 0xff360000 0x0 0x400>;
+		interrupts = <GIC_SPI 7 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "irq_dec";
+		clocks = <&cru ACLK_RKVDEC>, <&cru HCLK_RKVDEC>,
+			<&cru SCLK_VDEC_CABAC>, <&cru SCLK_VDEC_CORE>;
+		clock-names = "aclk_vcodec", "hclk_vcodec", "clk_cabac",
+			"clk_core";
+		assigned-clocks = <&cru ACLK_RKVDEC_PRE>, <&cru SCLK_VDEC_CORE>;
+		assigned-clock-parents = <&cru PLL_GPLL>, <&cru PLL_GPLL>;
+		assigned-clock-rates = <500000000>, <245760000>;
+		resets = <&cru SRST_VDEC_A>, <&cru SRST_VDEC_H>,
+			<&cru SRST_VDEC_NIU_A>, <&cru SRST_VDEC_NIU_H>,
+			<&cru SRST_VDEC_CABAC>, <&cru SRST_VDEC_CORE>;
+		reset-names = "video_a", "video_h", "niu_a", "niu_h",
+			"video_cabac", "video_core";
+		iommus = <&rkvdec_mmu>;
+		power-domains = <&power RK3328_PD_VIDEO>;
+		rockchip,srv = <&rkvdec_srv>;
 		status = "disabled";
 	};
 
@@ -730,8 +834,8 @@
 			<15000000>, <15000000>,
 			<300000000>, <100000000>,
 			<400000000>, <100000000>,
-			<50000000>, <100000000>,
-			<100000000>, <100000000>,
+			<50000000>, <300000000>,
+			<300000000>, <300000000>,
 			<50000000>, <50000000>,
 			<50000000>, <50000000>,
 			<24000000>, <600000000>,
