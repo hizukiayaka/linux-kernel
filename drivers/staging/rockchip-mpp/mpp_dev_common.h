@@ -16,56 +16,33 @@
 #ifndef _ROCKCHIP_MPP_DEV_COMMON_H_
 #define _ROCKCHIP_MPP_DEV_COMMON_H_
 
-#include <linux/cdev.h>
 #include <linux/dma-buf.h>
 #include <linux/kfifo.h>
+#include <linux/platform_device.h>
 #include <linux/types.h>
 #include <linux/workqueue.h>
 #include <linux/reset.h>
 
+#include <linux/videodev2.h>
+#include <media/v4l2-ctrls.h>
+#include <media/v4l2-device.h>
+#include <media/v4l2-ioctl.h>
+#include <media/v4l2-subdev.h>
+#include <media/videobuf2-v4l2.h>
+
 #include "mpp_service.h"
 
-#define MPP_IOC_CUSTOM_BASE			0x1000
+#define MPP_MODULE_NAME			"rk-mpp"
 
-#define EXTRA_INFO_MAGIC			(0x4C4A46)
-#define JPEG_IOC_EXTRA_SIZE			(48)
-
-struct mpp_trans_info {
-	const int count;
-	const char * const table;
-};
-
-struct extra_info_elem {
-	u32 index;
-	u32 offset;
-};
-
-struct extra_info_for_iommu {
-	u32 magic;
-	u32 cnt;
-	struct extra_info_elem elem[20];
-};
+extern const struct v4l2_ioctl_ops mpp_ioctl_ops_templ;
 
 struct mpp_dev_variant {
 	u32 reg_len;
-	struct mpp_trans_info *trans_info;
 	const char *node_name;
 	u32 version_bit;
+	int vfd_func;
 };
 
-struct mpp_mem_region {
-	struct list_head srv_lnk;
-	struct list_head reg_lnk;
-	struct list_head session_lnk;
-	/* virtual address for iommu */
-	dma_addr_t iova;
-	unsigned long len;
-	u32 reg_idx;
-	void *hdl;
-};
-
-/* Definition in dma file */
-struct mpp_dma_session;
 /* Definition in mpp service file */
 struct mpp_service;
 
@@ -74,17 +51,22 @@ struct rockchip_mpp_dev {
 
 	const struct mpp_dev_variant *variant;
 	struct mpp_dev_ops *ops;
+	struct v4l2_pix_format_mplane fmt_out[16];
+	struct v4l2_pix_format_mplane fmt_cap[16];
 
 	void __iomem *reg_base;
 	int irq;
 	struct workqueue_struct *irq_workq;
+	struct iommu_domain *domain;
 
-	struct mpp_iommu_info *iommu_info;
 	rwlock_t resource_rwlock;
 	atomic_t reset_request;
 
-	struct cdev mpp_cdev;
-	dev_t dev_id;
+	struct v4l2_device v4l2_dev;
+	struct v4l2_m2m_dev *m2m_dev;
+	struct media_device mdev;
+	struct video_device *vfd;
+	struct mutex dev_lock;
 
 	/* MPP Service */
 	struct mpp_service_node *srv;
@@ -94,10 +76,9 @@ struct mpp_task;
 
 struct mpp_session {
 	/* the session related device private data */
-	struct rockchip_mpp_dev *mpp;
+	struct rockchip_mpp_dev *mpp_dev;
 	/* a linked list of data so we can access them for debugging */
 	struct list_head list_session;
-	struct mpp_dma_session *dma;
 
 	/* session tasks list lock */
 	struct mutex lock;
@@ -108,6 +89,17 @@ struct mpp_session {
 	wait_queue_head_t wait;
 	pid_t pid;
 	atomic_t task_running;
+
+	struct v4l2_fh fh;
+	u32 sequence_cap;
+	u32 sequence_out;
+
+	struct v4l2_pix_format_mplane fmt_out;
+	struct v4l2_pix_format_mplane fmt_cap;
+	
+	struct v4l2_ctrl_handler ctrl_handler;
+	/* TODO: FIXME: slower than helper function ? */
+	struct v4l2_ctrl **ctrls;
 };
 
 /* The context for the a task */
@@ -119,8 +111,6 @@ struct mpp_task {
 	struct list_head session_link;
 	/* link to service list */
 	struct list_head service_link;
-	/* The DMA buffer used in this task */
-	struct list_head mem_region_list;
 	struct work_struct work;
 
 	/* record context running start time */
@@ -154,12 +144,21 @@ struct mpp_dev_ops {
 	int (*reset)(struct rockchip_mpp_dev *mpp_dev);
 };
 
-struct mpp_mem_region *mpp_dev_task_attach_fd(struct mpp_task *task, int fd);
-int mpp_reg_address_translate(struct rockchip_mpp_dev *data,
-			      struct mpp_task *task, int fmt, u32 *reg);
-void mpp_translate_extra_info(struct mpp_task *task,
-			      struct extra_info_for_iommu *ext_inf,
-			      u32 *reg);
+struct rockchip_mpp_control {
+	u32 codec;
+	u32 id;
+	u32 elem_size;
+};
+
+void *rockchip_mpp_alloc_session(struct rockchip_mpp_dev *mpp_dev,
+				 struct video_device *vdev);
+int rockchip_mpp_dev_release(struct file *filp);
+
+void *rockchip_mpp_get_cur_ctrl(struct mpp_session *session, u32 id);
+int rockchip_mpp_get_ref_idx(struct vb2_queue *queue,
+			     struct vb2_buffer *vb2_buf, u64 timestamp);
+dma_addr_t rockchip_mpp_find_addr(struct vb2_queue *queue,
+				  struct vb2_buffer *vb2_buf, u64 timestamp);
 
 int mpp_dev_task_init(struct mpp_session *session, struct mpp_task *task);
 void mpp_dev_task_finish(struct mpp_session *session, struct mpp_task *task);
@@ -172,18 +171,12 @@ bool mpp_dev_is_power_on(struct rockchip_mpp_dev *mpp);
 void mpp_dump_reg(void __iomem *regs, int count);
 void mpp_dump_reg_mem(u32 *regs, int count);
 
-/* It can handle the default ioctl */
-long mpp_dev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg);
-#ifdef CONFIG_COMPAT
-long mpp_dev_compat_ioctl(struct file *filp, unsigned int cmd,
-			  unsigned long arg);
-#endif
-
 int mpp_dev_common_probe(struct rockchip_mpp_dev *mpp_dev,
 			 struct platform_device *pdev,
 			 struct mpp_dev_ops *ops);
 int mpp_dev_register_node(struct rockchip_mpp_dev *mpp_dev,
-			  const char *node_name, const void *fops);
+			  const char *node_name, const void *v4l2_fops,
+			  const void *v4l2_ioctl_ops);
 int mpp_dev_common_remove(struct rockchip_mpp_dev *mpp_dev);
 
 static inline void safe_reset(struct reset_control *rst)
@@ -199,14 +192,14 @@ static inline void safe_unreset(struct reset_control *rst)
 }
 
 void mpp_dev_write_seq(struct rockchip_mpp_dev *mpp_dev,
-			      unsigned long offset, void *buffer,
-			      unsigned long count);
+		       unsigned long offset, void *buffer,
+		       unsigned long count);
 
 void mpp_dev_write(struct rockchip_mpp_dev *mpp, u32 val, u32 reg);
 
 void mpp_dev_read_seq(struct rockchip_mpp_dev *mpp_dev,
-			     unsigned long offset, void *buffer,
-			     unsigned long count);
+		      unsigned long offset, void *buffer,
+		      unsigned long count);
 
 u32 mpp_dev_read(struct rockchip_mpp_dev *mpp, u32 reg);
 
