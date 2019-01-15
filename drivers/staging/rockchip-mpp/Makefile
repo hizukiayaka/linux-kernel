@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0
 rk-mpp-service-objs := mpp_service.o
-rk-mpp-device-objs := mpp_dev_common.o mpp_iommu_dma.o
+rk-mpp-device-objs := mpp_dev_common.o
 rk-mpp-vdec-objs := mpp_dev_rkvdec.o
 rk-mpp-vdpu1-objs := mpp_dev_vdpu1.o
 rk-mpp-vdpu2-objs := mpp_dev_vdpu2.o
