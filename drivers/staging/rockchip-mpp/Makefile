@@ -3,7 +3,7 @@ rk-mpp-service-objs := mpp_service.o
 rk-mpp-device-objs := mpp_dev_common.o
 rk-mpp-vdec-objs := mpp_dev_rkvdec.o
 rk-mpp-vdpu1-objs := mpp_dev_vdpu1.o
-rk-mpp-vdpu2-objs := mpp_dev_vdpu2.o
+rk-mpp-vdpu2-objs := mpp_dev_vdpu2.o vdpu2/mpeg2.o
 rk-mpp-vepu1-objs := mpp_dev_vepu1.o
 rk-mpp-vepu2-objs := mpp_dev_vepu2.o
 
