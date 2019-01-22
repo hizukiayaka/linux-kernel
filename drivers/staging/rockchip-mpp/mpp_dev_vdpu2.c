@@ -24,60 +24,19 @@
 #include <linux/uaccess.h>
 #include <soc/rockchip/pm_domains.h>
 
+#include <linux/videodev2.h>
+#include <media/v4l2-ctrls.h>
+#include <media/v4l2-ioctl.h>
+#include <media/v4l2-mem2mem.h>
+
+#include <linux/pm_runtime.h>
+
 #include "mpp_debug.h"
 #include "mpp_dev_common.h"
+#include "vdpu2/hal.h"
 
 #define RKVDPU2_DRIVER_NAME		"mpp_vdpu2"
 #define RKVDPU2_NODE_NAME		"vpu-service"
-
-/* The maximum registers number of all the version */
-#define ROCKCHIP_VDPU2_REG_NUM		159
-
-/* The first register of the decoder is Reg50(0x000c8) */
-#define RKVDPU2_REG_DEC_CTRL			0x0c8
-#define RKVDPU2_REG_DEC_CTRL_INDEX		(50)
-
-#define RKVDPU2_REG_SYS_CTRL			0x0d4
-#define RKVDPU2_REG_SYS_CTRL_INDEX		(53)
-#define		RKVDPU2_GET_FORMAT(x)		((x) & 0xf)
-#define		RKVDPU2_FMT_H264D		0
-#define		RKVDPU2_FMT_MPEG4D		1
-#define		RKVDPU2_FMT_H263D		2
-#define		RKVDPU2_FMT_JPEGD		3
-#define		RKVDPU2_FMT_VC1D		4
-#define		RKVDPU2_FMT_MPEG2D		5
-#define		RKVDPU2_FMT_MPEG1D		6
-#define		RKVDPU2_FMT_VP6D		7
-#define		RKVDPU2_FMT_RESERVED		8
-#define		RKVDPU2_FMT_VP7D		9
-#define		RKVDPU2_FMT_VP8D		10
-#define		RKVDPU2_FMT_AVSD		11
-
-#define RKVDPU2_REG_DEC_INT_EN			0x0dc
-#define RKVDPU2_REG_DEC_INT_EN_INDEX		(55)
-#define		RKVDPU2_INT_TIMEOUT		BIT(13)
-#define		RKVDPU2_INT_STRM_ERROR		BIT(12)
-#define		RKVDPU2_INT_SLICE		BIT(9)
-#define		RKVDPU2_INT_ASO_ERROR		BIT(8)
-#define		RKVDPU2_INT_BUF_EMPTY		BIT(6)
-#define		RKVDPU2_INT_BUS_ERROR		BIT(5)
-#define		RKVDPU2_DEC_INT			BIT(4)
-#define		RKVDPU2_DEC_IRQ_DIS		BIT(1)
-#define		RKVDPU2_DEC_INT_RAW		BIT(0)
-
-#define RKVDPU2_REG_DEC_DEV_CTRL		0x0e4
-#define RKVDPU2_REG_DEC_DEV_CTRL_INDEX		(57)
-#define		RKVDPU2_DEC_CLOCK_GATE_EN	BIT(4)
-#define		RKVDPU2_DEC_START		BIT(0)
-
-#define RKVDPU2_REG59				0x0ec
-#define RKVDPU2_REG59_INDEX			(59)
-
-#define RKVDPU2_REG_DIR_MV_BASE                 0x0f8
-#define RKVDPU2_REG_DIR_MV_BASE_INDEX           (62)
-
-#define RKVDPU2_REG_STREAM_RLC_BASE		0x100
-#define RKVDPU2_REG_STREAM_RLC_BASE_INDEX	(64)
 
 #define to_rkvdpu_task(ctx)		\
 		container_of(ctx, struct rkvdpu_task, mpp_task)
@@ -102,108 +61,219 @@ struct rkvdpu_task {
 
 	u32 reg[ROCKCHIP_VDPU2_REG_NUM];
 	u32 idx;
-	struct extra_info_for_iommu ext_inf;
 
 	u32 strm_base;
 	u32 irq_status;
 };
 
-/*
- * file handle translate information
- */
-static const char trans_tbl_default[] = {
-	61, 62, 63, 64, 131, 134, 135, 148
+static struct rockchip_mpp_control vdpu_controls[] = {
+	{
+	 .codec = V4L2_PIX_FMT_MPEG2_SLICE,
+	 .id = V4L2_CID_MPEG_VIDEO_MPEG2_SLICE_PARAMS,
+	 .elem_size = sizeof(struct v4l2_ctrl_mpeg2_slice_params),
+	 },
+	{
+	 .codec = V4L2_PIX_FMT_MPEG2_SLICE,
+	 .id = V4L2_CID_MPEG_VIDEO_MPEG2_QUANTIZATION,
+	 .elem_size = sizeof(struct v4l2_ctrl_mpeg2_quantization),
+	 },
 };
 
-static const char trans_tbl_jpegd[] = {
-	21, 22, 61, 63, 64, 131
+static struct v4l2_pix_format_mplane fmt_out_templ[] = {
+	{
+	 .pixelformat = V4L2_PIX_FMT_MPEG2_SLICE,
+	 },
+	{.pixelformat = 0},
 };
 
-static const char trans_tbl_h264d[] = {
-	61, 63, 64, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97,
-	98, 99
-};
-
-static const char trans_tbl_vc1d[] = {
-	62, 63, 64, 131, 134, 135, 145, 148
-};
-
-static const char trans_tbl_vp6d[] = {
-	61, 63, 64, 131, 136, 145
-};
-
-static const char trans_tbl_vp8d[] = {
-	61, 63, 64, 131, 136, 137, 140, 141, 142, 143, 144, 145, 146, 147, 149
-};
-
-static struct mpp_trans_info trans_rk_vdpu2[] = {
-	[RKVDPU2_FMT_H264D] = {
-		.count = sizeof(trans_tbl_h264d),
-		.table = trans_tbl_h264d,
-	},
-	[RKVDPU2_FMT_H263D] = {
-		.count = sizeof(trans_tbl_default),
-		.table = trans_tbl_default,
-	},
-	[RKVDPU2_FMT_MPEG4D] = {
-		.count = sizeof(trans_tbl_default),
-		.table = trans_tbl_default,
-	},
-	[RKVDPU2_FMT_JPEGD] = {
-		.count = sizeof(trans_tbl_jpegd),
-		.table = trans_tbl_jpegd,
-	},
-	[RKVDPU2_FMT_VC1D] = {
-		.count = sizeof(trans_tbl_vc1d),
-		.table = trans_tbl_vc1d,
-	},
-	[RKVDPU2_FMT_MPEG2D] = {
-		.count = sizeof(trans_tbl_default),
-		.table = trans_tbl_default,
-	},
-	[RKVDPU2_FMT_MPEG1D] = {
-		.count = sizeof(trans_tbl_default),
-		.table = trans_tbl_default,
-	},
-	[RKVDPU2_FMT_VP6D] = {
-		.count = sizeof(trans_tbl_vp6d),
-		.table = trans_tbl_vp6d,
-	},
-	[RKVDPU2_FMT_RESERVED] = {
-		.count = 0,
-		.table = NULL,
-	},
-	[RKVDPU2_FMT_VP7D] = {
-		.count = sizeof(trans_tbl_default),
-		.table = trans_tbl_default,
-	},
-	[RKVDPU2_FMT_VP8D] = {
-		.count = sizeof(trans_tbl_vp8d),
-		.table = trans_tbl_vp8d,
-	},
-	[RKVDPU2_FMT_AVSD] = {
-		.count = sizeof(trans_tbl_default),
-		.table = trans_tbl_default,
-	},
+static struct v4l2_pix_format_mplane fmt_cap_templ[] = {
+	{
+	 .pixelformat = V4L2_PIX_FMT_NV12M,
+	 },
+	{.pixelformat = 0},
 };
 
 static const struct mpp_dev_variant rkvdpu_v2_data = {
 	/* Exclude the register of the Performance counter */
 	.reg_len = 159,
-	.trans_info = trans_rk_vdpu2,
 	.node_name = RKVDPU2_NODE_NAME,
+	.vfd_func = MEDIA_ENT_F_PROC_VIDEO_DECODER,
 };
+
+static int rkvdpu_open(struct file *filp);
+
+static const struct v4l2_file_operations rkvdpu_fops = {
+	.open = rkvdpu_open,
+	.release = rockchip_mpp_dev_release,
+	.poll = v4l2_m2m_fop_poll,
+	.unlocked_ioctl = video_ioctl2,
+	.mmap = v4l2_m2m_fop_mmap,
+};
+
+#if 1
+static struct v4l2_ioctl_ops rkvdpu_ioctl_ops = { 0, };
+#endif
 
 static void *rockchip_rkvdpu2_get_drv_data(struct platform_device *pdev);
 
+
+static int rkvdpu_s_fmt_vid_out_mplane(struct file *filp, void *priv,
+				       struct v4l2_format *f)
+{
+	struct mpp_session *session = container_of(filp->private_data,
+						   struct mpp_session, fh);
+	struct v4l2_pix_format_mplane *pix_mp = &f->fmt.pix_mp;
+	struct vb2_queue *vq;
+	int sizes = 0;
+	int i;
+
+	/* TODO: We can change width and height at streaming on */
+	vq = v4l2_m2m_get_vq(session->fh.m2m_ctx, f->type);
+	if (vb2_is_streaming(vq))
+		return -EBUSY;
+
+#if 0
+	ret = rkvdpu_try_fmt_out(filp, priv, f);
+	if (ret)
+		return ret;
+#endif
+	if (!pix_mp->num_planes)
+		pix_mp->num_planes = 1;
+
+	for (i = 0; i < pix_mp->num_planes; i++) {
+		sizes += pix_mp->plane_fmt[i].sizeimage;
+	}
+	/* strm_len is 24 bits */
+	if (sizes >= SZ_16M)
+		return -EINVAL;
+
+	session->fmt_out = *pix_mp;
+
+	/* Copy the pixel format information from OUTPUT to CAPUTRE */
+	session->fmt_cap.pixelformat = V4L2_PIX_FMT_NV12M;
+	session->fmt_cap.width = pix_mp->width;
+	session->fmt_cap.height = pix_mp->height;
+	session->fmt_cap.colorspace = pix_mp->colorspace;
+	session->fmt_cap.ycbcr_enc = pix_mp->ycbcr_enc;
+	session->fmt_cap.xfer_func = pix_mp->xfer_func;
+	session->fmt_cap.quantization = pix_mp->quantization;
+
+	return 0;
+}
+
+static int rkvdpu_s_fmt_vid_cap_mplane(struct file *filp, void *priv,
+				       struct v4l2_format *f)
+{
+	struct mpp_session *session = container_of(filp->private_data,
+						   struct mpp_session, fh);
+	struct v4l2_pix_format_mplane *pix_mp = &f->fmt.pix_mp;
+	struct vb2_queue *vq;
+
+	vq = v4l2_m2m_get_vq(session->fh.m2m_ctx, f->type);
+	if (vb2_is_streaming(vq))
+		return -EBUSY;
+
+#if 0
+	ret = rkvdpu_try_fmt_cap(filp, priv, f);
+	if (ret)
+		return ret;
+#endif
+	switch (pix_mp->pixelformat) {
+	case V4L2_PIX_FMT_NV12M:
+		pix_mp->plane_fmt[0].bytesperline = ALIGN(pix_mp->width, 16);
+		pix_mp->plane_fmt[1].bytesperline = ALIGN(pix_mp->width, 16);
+		pix_mp->plane_fmt[0].sizeimage = ALIGN(pix_mp->width, 16) *
+		/*
+		 * FIXME: the plane 1 may map to a lower address than plane 0
+		 * before solve this allocator problem, it can pass the test
+		 */
+		    ALIGN(pix_mp->height, 16) * 2;
+		/* Additional space for motion vector */
+		pix_mp->plane_fmt[1].sizeimage = ALIGN(pix_mp->width, 16) *
+		    ALIGN(pix_mp->height, 16);
+		pix_mp->num_planes = 2;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	session->fmt_cap = *pix_mp;
+
+	return 0;
+}
+
+static int vdpu_setup_ctrls(struct rockchip_mpp_dev *mpp_dev,
+			    struct mpp_session *session)
+{
+	struct v4l2_ctrl_handler *hdl = &session->ctrl_handler;
+	struct v4l2_ctrl *ctrl;
+	unsigned int num_ctrls = ARRAY_SIZE(vdpu_controls);
+	unsigned int i;
+
+	v4l2_ctrl_handler_init(hdl, num_ctrls);
+	if (hdl->error) {
+		v4l2_err(&mpp_dev->v4l2_dev,
+			 "Failed to initialize control handler\n");
+		return hdl->error;
+	}
+
+	for (i = 0; i < num_ctrls; i++) {
+		struct v4l2_ctrl_config cfg = { };
+
+		cfg.id = vdpu_controls[i].id;
+		cfg.elem_size = vdpu_controls[i].elem_size;
+
+		ctrl = v4l2_ctrl_new_custom(hdl, &cfg, NULL);
+		if (hdl->error) {
+			v4l2_err(&mpp_dev->v4l2_dev,
+				 "Failed to create new custom %d control\n",
+				 cfg.id);
+			goto fail;
+		}
+	}
+
+	session->fh.ctrl_handler = hdl;
+	v4l2_ctrl_handler_setup(hdl);
+
+	return 0;
+fail:
+	v4l2_ctrl_handler_free(hdl);
+	return hdl->error;
+}
+
+static int rkvdpu_open(struct file *filp)
+{
+	struct rockchip_mpp_dev *mpp_dev = video_drvdata(filp);
+	struct video_device *vdev = video_devdata(filp);
+	struct mpp_session *session = NULL;
+	/* TODO: install ctrl based on register report */
+	int error = 0;
+
+	mpp_debug_enter();
+
+	session = rockchip_mpp_alloc_session(mpp_dev, vdev);
+	if (IS_ERR_OR_NULL(session))
+		return PTR_ERR(session);
+
+	error = vdpu_setup_ctrls(mpp_dev, session);
+	if (error) {
+		kfree(session);
+		return error;
+	}
+
+	filp->private_data = &session->fh;
+	pm_runtime_get_sync(mpp_dev->dev);
+
+	mpp_debug_leave();
+	return 0;
+}
+
 static void *rockchip_mpp_rkvdpu_alloc_task(struct mpp_session *session,
-					    void __user *src, u32 size)
+					    void __user * src, u32 size)
 {
 	struct rkvdpu_task *task = NULL;
-	u32 reg_len;
-	u32 extinf_len;
+	struct vb2_v4l2_buffer *src_buf;
 	u32 fmt = 0;
-	u32 dwsize = size / sizeof(u32);
 	int err = -EFAULT;
 
 	mpp_debug_enter();
@@ -214,72 +284,24 @@ static void *rockchip_mpp_rkvdpu_alloc_task(struct mpp_session *session,
 
 	mpp_dev_task_init(session, &task->mpp_task);
 
-	reg_len = dwsize > ROCKCHIP_VDPU2_REG_NUM ?
-		ROCKCHIP_VDPU2_REG_NUM : dwsize;
-	extinf_len = dwsize > reg_len ? (dwsize - reg_len) * 4 : 0;
+	src_buf = v4l2_m2m_next_src_buf(session->fh.m2m_ctx);
+	v4l2_ctrl_request_setup(src_buf->vb2_buf.req_obj.req,
+				&session->ctrl_handler);
 
-	if (copy_from_user(task->reg, src, reg_len * 4)) {
-		mpp_err("error: copy_from_user failed in reg_init\n");
-		err = -EFAULT;
+	fmt = session->fmt_out.pixelformat;
+	switch (fmt) {
+	case V4L2_PIX_FMT_MPEG2_SLICE:
+		err = rkvdpu_mpeg2_gen_reg(session, task->reg, src_buf);
+		break;
+	default:
 		goto fail;
 	}
 
-	fmt = RKVDPU2_GET_FORMAT(task->reg[RKVDPU2_REG_SYS_CTRL_INDEX]);
-	if (extinf_len > 0) {
-		if (likely(fmt == RKVDPU2_FMT_JPEGD)) {
-			err = copy_from_user(&task->ext_inf,
-					     (u8 *)src + size
-					     - JPEG_IOC_EXTRA_SIZE,
-					     JPEG_IOC_EXTRA_SIZE);
-		} else {
-			u32 ext_cpy = min_t(size_t, extinf_len,
-					    sizeof(task->ext_inf));
-			err = copy_from_user(&task->ext_inf,
-					     (u32 *)src + reg_len, ext_cpy);
-		}
-
-		if (err) {
-			mpp_err("copy_from_user failed when extra info\n");
-			err = -EFAULT;
-			goto fail;
-		}
-	}
-
-	err = mpp_reg_address_translate(session->mpp, &task->mpp_task, fmt,
-					task->reg);
-	if (err) {
-		mpp_err("error: translate reg address failed.\n");
-
-		if (unlikely(debug & DEBUG_DUMP_ERR_REG))
-			mpp_debug_dump_reg_mem(task->reg,
-					       ROCKCHIP_VDPU2_REG_NUM);
+	if (err)
 		goto fail;
-	}
 
-	if (likely(fmt == RKVDPU2_FMT_H264D)) {
-		struct mpp_mem_region *mem_region = NULL;
-		dma_addr_t iova = 0;
-		u32 offset = task->reg[RKVDPU2_REG_DIR_MV_BASE_INDEX];
-		int fd = task->reg[RKVDPU2_REG_DIR_MV_BASE_INDEX] & 0x3ff;
-
-		offset = offset >> 10 << 4;
-		mem_region = mpp_dev_task_attach_fd(&task->mpp_task, fd);
-		if (IS_ERR(mem_region)) {
-			err = PTR_ERR(mem_region);
-			goto fail;
-		}
-
-		iova = mem_region->iova;
-		mpp_debug(DEBUG_IOMMU, "DMV[%3d]: %3d => %pad + offset %10d\n",
-			  RKVDPU2_REG_DIR_MV_BASE_INDEX, fd, &iova, offset);
-		task->reg[RKVDPU2_REG_DIR_MV_BASE_INDEX] = iova + offset;
-	}
-
-	task->strm_base = task->reg[RKVDPU2_REG_STREAM_RLC_BASE_INDEX];
-
-	mpp_debug(DEBUG_SET_REG, "extra info cnt %u, magic %08x",
-		  task->ext_inf.cnt, task->ext_inf.magic);
-	mpp_translate_extra_info(&task->mpp_task, &task->ext_inf, task->reg);
+	v4l2_ctrl_request_complete(src_buf->vb2_buf.req_obj.req,
+				   &session->ctrl_handler);
 
 	mpp_debug_leave();
 
@@ -289,15 +311,17 @@ fail:
 	if (unlikely(debug & DEBUG_DUMP_ERR_REG))
 		mpp_debug_dump_reg_mem(task->reg, ROCKCHIP_VDPU2_REG_NUM);
 
-	mpp_dev_task_finalize(session, &task->mpp_task);
 	kfree(task);
 	return ERR_PTR(err);
 }
 
 static int rockchip_mpp_rkvdpu_prepare(struct rockchip_mpp_dev *mpp_dev,
-				       struct mpp_task *task)
+				       struct mpp_task *mpp_task)
 {
-	return -EINVAL;
+	struct rkvdpu_task *task = container_of(mpp_task, struct rkvdpu_task,
+						mpp_task);
+
+	return rkvdpu_mpeg2_prepare_buf(mpp_task->session, task->reg);
 }
 
 static int rockchip_mpp_rkvdpu_run(struct rockchip_mpp_dev *mpp_dev,
@@ -355,17 +379,21 @@ static int rockchip_mpp_rkvdpu_finish(struct rockchip_mpp_dev *mpp_dev,
 
 static int rockchip_mpp_rkvdpu_result(struct rockchip_mpp_dev *mpp_dev,
 				      struct mpp_task *mpp_task,
-				      u32 __user *dst, u32 size)
+				      u32 __user * dst, u32 size)
 {
 	struct rkvdpu_task *task = to_rkvdpu_task(mpp_task);
+	u32 err_mask;
 
-	/* FIXME may overflow the kernel */
-	if (copy_to_user(dst, task->reg, size)) {
-		mpp_err("copy_to_user failed\n");
-		return -EIO;
-	}
+	err_mask = RKVDPU2_INT_TIMEOUT
+	    | RKVDPU2_INT_STRM_ERROR
+	    | RKVDPU2_INT_ASO_ERROR
+	    | RKVDPU2_INT_BUF_EMPTY
+	    | RKVDPU2_INT_BUS_ERROR;
 
-	return 0;
+	if (err_mask & task->irq_status)
+		return VB2_BUF_STATE_ERROR;
+
+	return VB2_BUF_STATE_DONE;
 }
 
 static int rockchip_mpp_rkvdpu_free_task(struct mpp_session *session,
@@ -406,14 +434,13 @@ static irqreturn_t mpp_rkvdpu_isr(int irq, void *dev_id)
 	mpp_task = &task->mpp_task;
 	mpp_debug_time_diff(mpp_task);
 	task->irq_status = irq_status;
-	mpp_debug(DEBUG_IRQ_STATUS, "irq_status: %08x\n",
-		  task->irq_status);
+	mpp_debug(DEBUG_IRQ_STATUS, "irq_status: %08x\n", task->irq_status);
 
 	err_mask = RKVDPU2_INT_TIMEOUT
-		| RKVDPU2_INT_STRM_ERROR
-		| RKVDPU2_INT_ASO_ERROR
-		| RKVDPU2_INT_BUF_EMPTY
-		| RKVDPU2_INT_BUS_ERROR;
+	    | RKVDPU2_INT_STRM_ERROR
+	    | RKVDPU2_INT_ASO_ERROR
+	    | RKVDPU2_INT_BUF_EMPTY
+	    | RKVDPU2_INT_BUS_ERROR;
 
 	if (err_mask & task->irq_status)
 		atomic_set(&mpp_dev->reset_request, 1);
@@ -440,6 +467,10 @@ static int rockchip_mpp_rkvdpu_assign_reset(struct rockchip_rkvdpu_dev *dec_dev)
 		mpp_err("No hclk reset resource define\n");
 		dec_dev->rst_h = NULL;
 	}
+
+	safe_unreset(dec_dev->rst_h);
+	safe_unreset(dec_dev->rst_a);
+
 
 	return 0;
 }
@@ -504,10 +535,19 @@ static int rockchip_mpp_rkvdpu_probe(struct platform_device *pdev)
 
 	rockchip_mpp_rkvdpu_assign_reset(dec_dev);
 
-	ret = mpp_dev_register_node(mpp_dev, mpp_dev->variant->node_name, NULL);
+	rkvdpu_ioctl_ops = mpp_ioctl_ops_templ;
+	rkvdpu_ioctl_ops.vidioc_s_fmt_vid_out_mplane =
+	    rkvdpu_s_fmt_vid_out_mplane;
+	rkvdpu_ioctl_ops.vidioc_s_fmt_vid_cap_mplane =
+	    rkvdpu_s_fmt_vid_cap_mplane;
+
+	ret = mpp_dev_register_node(mpp_dev, mpp_dev->variant->node_name,
+				    &rkvdpu_fops, &rkvdpu_ioctl_ops);
 	if (ret)
 		dev_err(dev, "register char device failed: %d\n", ret);
 
+	memcpy(mpp_dev->fmt_out, fmt_out_templ, sizeof(fmt_out_templ));
+	memcpy(mpp_dev->fmt_cap, fmt_cap_templ, sizeof(fmt_cap_templ));
 	dev_info(dev, "probing finish\n");
 
 	platform_set_drvdata(pdev, dec_dev);
@@ -525,7 +565,7 @@ static int rockchip_mpp_rkvdpu_remove(struct platform_device *pdev)
 }
 
 static const struct of_device_id mpp_rkvdpu2_dt_match[] = {
-	{ .compatible = "rockchip,vpu-decoder-v2", .data = &rkvdpu_v2_data},
+	{.compatible = "rockchip,vpu-decoder-v2",.data = &rkvdpu_v2_data},
 	{},
 };
 
@@ -547,9 +587,9 @@ static struct platform_driver rockchip_rkvdpu2_driver = {
 	.probe = rockchip_mpp_rkvdpu_probe,
 	.remove = rockchip_mpp_rkvdpu_remove,
 	.driver = {
-		.name = RKVDPU2_DRIVER_NAME,
-		.of_match_table = of_match_ptr(mpp_rkvdpu2_dt_match),
-	},
+		   .name = RKVDPU2_DRIVER_NAME,
+		   .of_match_table = of_match_ptr(mpp_rkvdpu2_dt_match),
+		   },
 };
 
 static int __init mpp_dev_rkvdpu2_init(void)
