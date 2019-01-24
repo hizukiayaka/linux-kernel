@@ -26,7 +26,6 @@
 
 #include "mpp_debug.h"
 #include "mpp_dev_common.h"
-#include "mpp_iommu_dma.h"
 
 #define RKVDEC_DRIVER_NAME		"mpp_rkvdec"
 
@@ -36,54 +35,6 @@
 
 #define RKVDEC_NODE_NAME		"rkvdec"
 #define RK_HEVCDEC_NODE_NAME		"hevc-service"
-
-/* The maximum registers number of all the version */
-#define ROCKCHIP_RKVDEC_REG_NUM			(109)
-
-#define RKVDEC_REG_DEC_INT_EN			0x004
-#define RKVDEC_REG_DEC_INT_EN_INDEX		(1)
-#define		RKVDEC_WR_DDR_ALIGN_EN		BIT(23)
-#define		RKVDEC_FORCE_SOFT_RESET_VALID	BIT(21)
-#define		RKVDEC_SOFTWARE_RESET_EN	BIT(20)
-#define		RKVDEC_INT_COLMV_REF_ERROR	BIT(17)
-#define		RKVDEC_INT_BUF_EMPTY		BIT(16)
-#define		RKVDEC_INT_TIMEOUT		BIT(15)
-#define		RKVDEC_INT_STRM_ERROR		BIT(14)
-#define		RKVDEC_INT_BUS_ERROR		BIT(13)
-#define		RKVDEC_DEC_INT_RAW		BIT(9)
-#define		RKVDEC_DEC_INT			BIT(8)
-#define		RKVDEC_DEC_TIMEOUT_EN		BIT(5)
-#define		RKVDEC_DEC_IRQ_DIS		BIT(4)
-#define		RKVDEC_CLOCK_GATE_EN		BIT(1)
-#define		RKVDEC_DEC_START		BIT(0)
-
-#define RKVDEC_REG_SYS_CTRL			0x008
-#define RKVDEC_REG_SYS_CTRL_INDEX		(2)
-#define		RKVDEC_GET_FORMAT(x)		(((x) >> 20) & 0x3)
-#define		RKVDEC_FMT_H265D		(0)
-#define		RKVDEC_FMT_H264D		(1)
-#define		RKVDEC_FMT_VP9D			(2)
-
-#define RKVDEC_REG_STREAM_RLC_BASE		0x010
-#define RKVDEC_REG_STREAM_RLC_BASE_INDEX	(4)
-
-#define RKVDEC_REG_PPS_BASE			0x0a0
-#define RKVDEC_REG_PPS_BASE_INDEX		(42)
-
-#define RKVDEC_REG_VP9_REFCOLMV_BASE		0x0d0
-#define RKVDEC_REG_VP9_REFCOLMV_BASE_INDEX	(52)
-
-#define RKVDEC_REG_CACHE_ENABLE(i)		(0x41c + ((i) * 0x40))
-#define		RKVDEC_CACHE_PERMIT_CACHEABLE_ACCESS	BIT(0)
-#define		RKVDEC_CACHE_PERMIT_READ_ALLOCATE	BIT(1)
-#define		RKVDEC_CACHE_LINE_SIZE_64_BYTES		BIT(4)
-
-#define MPP_ALIGN_SIZE	0x1000
-
-#define MHZ		(1000 * 1000)
-#define DEF_ACLK	400
-#define DEF_CORE	250
-#define DEF_CABAC	300
 
 #define to_rkvdec_task(ctx)		\
 		container_of(ctx, struct rkvdec_task, mpp_task)
@@ -128,68 +79,141 @@ struct rkvdec_task {
 	u32 irq_status;
 };
 
-/*
- * file handle translate information
- */
-static const char trans_tbl_h264d[] = {
-	4, 6, 7, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
-	23, 24, 41, 42, 43, 48, 75
+static struct rockchip_mpp_control hevc_controls[] = {
 };
 
-static const char trans_tbl_h265d[] = {
-	4, 6, 7, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
-	23, 24, 42, 43
+static struct rockchip_mpp_control rkvdec_controls[] = {
 };
 
-static const char trans_tbl_vp9d[] = {
-	4, 6, 7, 11, 12, 13, 14, 15, 16
+static const struct v4l2_pix_format_mplane fmt_out_temp[] = {
+	{
+	 .pixelformat = V4L2_PIX_FMT_H264_SLICE,
+	 },
+	{
+	 .pixelformat = V4L2_PIX_FMT_H265_SLICE,
+	 },
 };
 
-static struct mpp_trans_info trans_rk_hevcdec[] = {
-	[RKVDEC_FMT_H265D] = {
-		.count = sizeof(trans_tbl_h265d),
-		.table = trans_tbl_h265d,
-	},
-};
-
-static struct mpp_trans_info trans_rkvdec[] = {
-	[RKVDEC_FMT_H265D] = {
-		.count = sizeof(trans_tbl_h265d),
-		.table = trans_tbl_h265d,
-	},
-	[RKVDEC_FMT_H264D] = {
-		.count = sizeof(trans_tbl_h264d),
-		.table = trans_tbl_h264d,
-	},
-	[RKVDEC_FMT_VP9D] = {
-		.count = sizeof(trans_tbl_vp9d),
-		.table = trans_tbl_vp9d,
-	},
+static const struct rockchip_mpp_format pixel_formats[] = {
+	{
+	 .pixelformat = V4L2_PIX_FMT_NV12M,
+	 },
+	{
+	 .pixelformat = V4L2_PIX_FMT_NV16M,
+	 },
 };
 
 static const struct mpp_dev_variant rkvdec_v1_data = {
 	.reg_len = 76,
-	.trans_info = trans_rkvdec,
 	.node_name = RKVDEC_NODE_NAME,
 	.version_bit = BIT(0),
 };
 
 static const struct mpp_dev_variant rkvdec_v1p_data = {
 	.reg_len = 76,
-	.trans_info = trans_rkvdec,
 	.node_name = RKVDEC_NODE_NAME,
 	.version_bit = RKVDEC_VER_RK3328_BIT,
 };
 
-
 static const struct mpp_dev_variant rk_hevcdec_data = {
 	.reg_len = 48,
-	.trans_info = trans_rk_hevcdec,
 	.node_name = RK_HEVCDEC_NODE_NAME,
 	.version_bit = BIT(0),
 };
 
 static void *rockchip_rkvdec_get_drv_data(struct platform_device *pdev);
+
+static int rkvdec_s_fmt_vid_out_mplane(struct file *filp, void *priv,
+				       struct v4l2_format *f)
+{
+	struct mpp_session *session = container_of(filp->private_data,
+						   struct mpp_session, fh);
+	struct v4l2_pix_format_mplane *pix_mp = &f->fmt.pix_mp;
+	struct vb2_queue *vq;
+	int sizes = 0;
+	int i;
+
+	/* TODO: We can change width and height at streaming on */
+	vq = v4l2_m2m_get_vq(session->fh.m2m_ctx, f->type);
+	if (vb2_is_streaming(vq))
+		return -EBUSY;
+
+	for (i = 0; i < pix_mp->num_planes; i++) {
+		sizes += pix_mp->plane_fmt[i].sizeimage;
+	}
+	/* strm_len is 24 bits */
+	if (sizes >= SZ_16M)
+		return -EINVAL;
+
+	session->fmt_out = *pix_mp;
+
+	/* Copy the pixel format information from OUTPUT to CAPUTRE */
+	session->fmt_cap.width = pix_mp->width;
+	session->fmt_cap.height = pix_mp->height;
+	session->fmt_cap.colorspace = pix_mp->colorspace;
+	session->fmt_cap.ycbcr_enc = pix_mp->ycbcr_enc;
+	session->fmt_cap.xfer_func = pix_mp->xfer_func;
+	session->fmt_cap.quantization = pix_mp->quantization;
+
+	return 0;
+}
+
+static int rkvdec_s_fmt_vid_cap_mplane(struct file *filp, void *priv,
+				       struct v4l2_format *f)
+{
+	struct mpp_session *session = container_of(filp->private_data,
+						   struct mpp_session, fh);
+	struct v4l2_pix_format_mplane *pix_mp = &f->fmt.pix_mp;
+	struct vb2_queue *vq;
+
+	vq = v4l2_m2m_get_vq(session->fh.m2m_ctx, f->type);
+	if (vb2_is_streaming(vq))
+		return -EBUSY;
+
+#if 0
+	ret = rkvdpu_try_fmt_cap(filp, priv, f);
+	if (ret)
+		return ret;
+#endif
+	switch (pix_mp->pixelformat) {
+	case V4L2_PIX_FMT_NV12M:
+		/* TODO: adaptive based by cache settings */
+		pix_mp->plane_fmt[0].bytesperline =
+		    ALIGN(pix_mp->width, 256) | 256;
+		pix_mp->plane_fmt[1].bytesperline =
+		    ALIGN(pix_mp->width, 256) | 256;
+		/* TODO: align with 16 for H.264 */
+		pix_mp->plane_fmt[0].sizeimage =
+		    pix_mp->plane_fmt[0].bytesperline * ALIGN(pix_mp->height,
+							      8);
+		/* Additional space for motion vector */
+		pix_mp->plane_fmt[1].sizeimage =
+		    pix_mp->plane_fmt[1].bytesperline * ALIGN(pix_mp->height,
+							      8);
+		break;
+	case V4L2_PIX_FMT_NV16M:
+		pix_mp->plane_fmt[0].bytesperline =
+		    ALIGN(pix_mp->width, 256) | 256;
+		pix_mp->plane_fmt[1].bytesperline =
+		    ALIGN(pix_mp->width, 256) | 256;
+		pix_mp->plane_fmt[0].sizeimage =
+		    pix_mp->plane_fmt[0].bytesperline * ALIGN(pix_mp->height,
+							      16);
+		pix_mp->plane_fmt[1].sizeimage =
+		    pix_mp->plane_fmt[1].bytesperline *
+		    /* Additional space for motion vector */
+		    pix_mp->plane_fmt[1].sizeimage =
+		    pix_mp->plane_fmt[1].bytesperline * ALIGN(pix_mp->height,
+							      16) * 3 / 2;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	session->fmt_cap = *pix_mp;
+
+	return 0;
+}
 
 /*
  * NOTE: rkvdec/rkhevc put scaling list address in pps buffer hardware will read
@@ -283,7 +307,7 @@ done:
 }
 
 static void *rockchip_mpp_rkvdec_alloc_task(struct mpp_session *session,
-					    void __user *src, u32 size)
+					    void __user * src, u32 size)
 {
 	struct rkvdec_task *task = NULL;
 	u32 reg_len;
@@ -302,7 +326,7 @@ static void *rockchip_mpp_rkvdec_alloc_task(struct mpp_session *session,
 	mpp_dev_task_init(session, &task->mpp_task);
 
 	reg_len = dwsize > ROCKCHIP_RKVDEC_REG_NUM ?
-		ROCKCHIP_RKVDEC_REG_NUM : dwsize;
+	    ROCKCHIP_RKVDEC_REG_NUM : dwsize;
 
 	if (copy_from_user(task->reg, src, reg_len * 4)) {
 		mpp_err("error: copy_from_user failed in reg_init\n");
@@ -371,8 +395,7 @@ static void *rockchip_mpp_rkvdec_alloc_task(struct mpp_session *session,
 			break;
 		}
 
-		mpp_debug(DEBUG_PPS_FILL,
-			  "scaling list filling parameter:\n");
+		mpp_debug(DEBUG_PPS_FILL, "scaling list filling parameter:\n");
 		mpp_debug(DEBUG_PPS_FILL,
 			  "pps_info_offset %d\n", pps_info_offset);
 		mpp_debug(DEBUG_PPS_FILL,
@@ -452,7 +475,7 @@ static int rockchip_mpp_rkvdec_run(struct rockchip_mpp_dev *mpp_dev,
 		dec_dev->current_task = task;
 
 		reg = RKVDEC_CACHE_PERMIT_CACHEABLE_ACCESS
-			| RKVDEC_CACHE_PERMIT_READ_ALLOCATE;
+		    | RKVDEC_CACHE_PERMIT_READ_ALLOCATE;
 		if (!(debug & DEBUG_CACHE_32B))
 			reg |= RKVDEC_CACHE_LINE_SIZE_64_BYTES;
 
@@ -488,13 +511,15 @@ static int rockchip_mpp_rkvdec_finish(struct rockchip_mpp_dev *mpp_dev,
 	mpp_debug_enter();
 
 	switch (dec_dev->state) {
-	case RKVDEC_STATE_NORMAL: {
-		mpp_dev_read_seq(mpp_dev, RKVDEC_REG_SYS_CTRL,
-				 &task->reg[RKVDEC_REG_SYS_CTRL_INDEX],
-				 mpp_dev->variant->reg_len
-				 - RKVDEC_REG_SYS_CTRL_INDEX);
-		task->reg[RKVDEC_REG_DEC_INT_EN_INDEX] = task->irq_status;
-	} break;
+	case RKVDEC_STATE_NORMAL:{
+			mpp_dev_read_seq(mpp_dev, RKVDEC_REG_SYS_CTRL,
+					 &task->reg[RKVDEC_REG_SYS_CTRL_INDEX],
+					 mpp_dev->variant->reg_len
+					 - RKVDEC_REG_SYS_CTRL_INDEX);
+			task->reg[RKVDEC_REG_DEC_INT_EN_INDEX] =
+			    task->irq_status;
+		}
+		break;
 	default:
 		break;
 	}
@@ -506,7 +531,7 @@ static int rockchip_mpp_rkvdec_finish(struct rockchip_mpp_dev *mpp_dev,
 
 static int rockchip_mpp_rkvdec_result(struct rockchip_mpp_dev *mpp_dev,
 				      struct mpp_task *mpp_task,
-				      u32 __user *dst, u32 size)
+				      u32 __user * dst, u32 size)
 {
 	struct rkvdec_task *task = to_rkvdec_task(mpp_task);
 
@@ -559,10 +584,9 @@ static irqreturn_t mpp_rkvdec_isr(int irq, void *dev_id)
 			  task->irq_status);
 
 		err_mask = RKVDEC_INT_BUF_EMPTY
-			| RKVDEC_INT_BUS_ERROR
-			| RKVDEC_INT_COLMV_REF_ERROR
-			| RKVDEC_INT_STRM_ERROR
-			| RKVDEC_INT_TIMEOUT;
+		    | RKVDEC_INT_BUS_ERROR
+		    | RKVDEC_INT_COLMV_REF_ERROR
+		    | RKVDEC_INT_STRM_ERROR | RKVDEC_INT_TIMEOUT;
 
 		if (err_mask & task->irq_status)
 			atomic_set(&mpp_dev->reset_request, 1);
@@ -801,9 +825,9 @@ static int rockchip_mpp_rkvdec_remove(struct platform_device *pdev)
 }
 
 static const struct of_device_id mpp_rkvdec_dt_match[] = {
-	{ .compatible = "rockchip,video-decoder-v1p", .data = &rkvdec_v1p_data},
-	{ .compatible = "rockchip,video-decoder-v1", .data = &rkvdec_v1_data},
-	{ .compatible = "rockchip,hevc-decoder-v1", .data = &rk_hevcdec_data},
+	{.compatible = "rockchip,video-decoder-v1p",.data = &rkvdec_v1p_data},
+	{.compatible = "rockchip,video-decoder-v1",.data = &rkvdec_v1_data},
+	{.compatible = "rockchip,hevc-decoder-v1",.data = &rk_hevcdec_data},
 	{},
 };
 
@@ -814,8 +838,7 @@ static void *rockchip_rkvdec_get_drv_data(struct platform_device *pdev)
 	if (pdev->dev.of_node) {
 		const struct of_device_id *match;
 
-		match = of_match_node(mpp_rkvdec_dt_match,
-				      pdev->dev.of_node);
+		match = of_match_node(mpp_rkvdec_dt_match, pdev->dev.of_node);
 		if (match)
 			driver_data = (struct mpp_dev_variant *)match->data;
 	}
@@ -826,9 +849,9 @@ static struct platform_driver rockchip_rkvdec_driver = {
 	.probe = rockchip_mpp_rkvdec_probe,
 	.remove = rockchip_mpp_rkvdec_remove,
 	.driver = {
-		.name = RKVDEC_DRIVER_NAME,
-		.of_match_table = of_match_ptr(mpp_rkvdec_dt_match),
-	},
+		   .name = RKVDEC_DRIVER_NAME,
+		   .of_match_table = of_match_ptr(mpp_rkvdec_dt_match),
+		   },
 };
 
 static int __init mpp_dev_rkvdec_init(void)
