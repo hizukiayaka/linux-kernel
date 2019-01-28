@@ -408,6 +408,9 @@ static int rkvdpu_open(struct file *filp)
 		return error;
 	}
 
+	session->qtable_vaddr = dmam_alloc_coherent(mpp_dev->dev, 64 * 4,
+						    &session->qtable_addr,
+						    GFP_KERNEL);
 	filp->private_data = &session->fh;
 	pm_runtime_get_sync(mpp_dev->dev);
 
