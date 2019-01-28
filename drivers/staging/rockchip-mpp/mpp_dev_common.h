@@ -100,6 +100,9 @@ struct mpp_session {
 	struct v4l2_ctrl_handler ctrl_handler;
 	/* TODO: FIXME: slower than helper function ? */
 	struct v4l2_ctrl **ctrls;
+
+	dma_addr_t qtable_addr;
+	void *qtable_vaddr;
 };
 
 /* The context for the a task */

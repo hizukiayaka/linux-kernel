@@ -52,7 +52,7 @@ static const u8 intra_default_q_matrix[64] = {
 static void mpeg2_dec_copy_qtable(u8 * qtable, const struct v4l2_ctrl_mpeg2_quantization
 				  *ctrl)
 {
-	int i, n;
+	int i;
 
 	if (!qtable || !ctrl)
 		return;
@@ -111,16 +111,12 @@ int rkvdpu_mpeg2_gen_reg(struct mpp_session *session, void *regs,
 			 struct vb2_v4l2_buffer *src_buf)
 {
 	const struct v4l2_ctrl_mpeg2_slice_params *params;
-	const struct v4l2_ctrl_mpeg2_quantization *quantization;
 	const struct v4l2_mpeg2_sequence *sequence;
 	const struct v4l2_mpeg2_picture *picture;
 	struct vdpu2_regs *p_regs = regs;
 
 	params = rockchip_mpp_get_cur_ctrl(session,
 					   V4L2_CID_MPEG_VIDEO_MPEG2_SLICE_PARAMS);
-	quantization = rockchip_mpp_get_cur_ctrl(session,
-						 V4L2_CID_MPEG_VIDEO_MPEG2_QUANTIZATION);
-
 	if (!params)
 		return -EINVAL;
 
@@ -211,6 +207,7 @@ int rkvdpu_mpeg2_prepare_buf(struct mpp_session *session, void *regs)
 {
 	const struct v4l2_ctrl_mpeg2_slice_params *params;
 	const struct v4l2_mpeg2_sequence *sequence;
+	const struct v4l2_ctrl_mpeg2_quantization *quantization;
 	const struct v4l2_mpeg2_picture *picture;
 	struct vb2_v4l2_buffer *dst_buf;
 	dma_addr_t cur_addr, fwd_addr, bwd_addr;
@@ -222,6 +219,9 @@ int rkvdpu_mpeg2_prepare_buf(struct mpp_session *session, void *regs)
 				      V4L2_CID_MPEG_VIDEO_MPEG2_SLICE_PARAMS);
 	picture = &params->picture;
 	sequence = &params->sequence;
+
+	quantization = rockchip_mpp_get_cur_ctrl(session,
+			V4L2_CID_MPEG_VIDEO_MPEG2_QUANTIZATION);
 
 	dst_buf = v4l2_m2m_next_dst_buf(session->fh.m2m_ctx);
 	cur_addr = vb2_dma_contig_plane_dma_addr(&dst_buf->vb2_buf, 0);
@@ -265,6 +265,9 @@ int rkvdpu_mpeg2_prepare_buf(struct mpp_session *session, void *regs)
 		p_regs->sw134.refer2_base = cur_addr >> 2;
 		p_regs->sw135.refer3_base = cur_addr >> 2;
 	}
+
+	mpeg2_dec_copy_qtable(session->qtable_vaddr, quantization);
+        p_regs->sw61.qtable_base = session->qtable_addr;
 
 	return 0;
 }
