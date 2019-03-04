@@ -113,7 +113,10 @@ int rkvdpu_mpeg2_gen_reg(struct mpp_session *session, void *regs,
 	const struct v4l2_ctrl_mpeg2_slice_params *params;
 	const struct v4l2_mpeg2_sequence *sequence;
 	const struct v4l2_mpeg2_picture *picture;
+	const struct v4l2_ctrl_mpeg2_quantization *quantization;
 	struct vdpu2_regs *p_regs = regs;
+	void *qtable = NULL;
+	size_t stream_len = 0;
 
 	params = rockchip_mpp_get_cur_ctrl(session,
 					   V4L2_CID_MPEG_VIDEO_MPEG2_SLICE_PARAMS);
@@ -122,6 +125,8 @@ int rkvdpu_mpeg2_gen_reg(struct mpp_session *session, void *regs,
 
 	sequence = &params->sequence;
 	picture = &params->picture;
+	quantization = rockchip_mpp_get_cur_ctrl(session,
+			V4L2_CID_MPEG_VIDEO_MPEG2_QUANTIZATION);
 
 	init_hw_cfg(p_regs);
 
@@ -198,7 +203,13 @@ int rkvdpu_mpeg2_gen_reg(struct mpp_session *session, void *regs,
 	p_regs->sw64.rlc_vlc_base =
 	    vb2_dma_contig_plane_dma_addr(&src_buf->vb2_buf, 0);
 	p_regs->sw122.strm_start_bit = params->data_bit_offset;
-	p_regs->sw51.stream_len = vb2_get_plane_payload(&src_buf->vb2_buf, 0);
+	stream_len = vb2_get_plane_payload(&src_buf->vb2_buf, 0);
+	p_regs->sw51.stream_len = stream_len;
+
+	qtable = vb2_plane_vaddr(&src_buf->vb2_buf, 0) + ALIGN(stream_len, 8);
+	mpeg2_dec_copy_qtable(qtable, quantization);
+        p_regs->sw61.qtable_base = p_regs->sw64.rlc_vlc_base
+		+ ALIGN(stream_len, 8);
 
 	return 0;
 }
@@ -207,7 +218,6 @@ int rkvdpu_mpeg2_prepare_buf(struct mpp_session *session, void *regs)
 {
 	const struct v4l2_ctrl_mpeg2_slice_params *params;
 	const struct v4l2_mpeg2_sequence *sequence;
-	const struct v4l2_ctrl_mpeg2_quantization *quantization;
 	const struct v4l2_mpeg2_picture *picture;
 	struct vb2_v4l2_buffer *dst_buf;
 	dma_addr_t cur_addr, fwd_addr, bwd_addr;
@@ -219,9 +229,6 @@ int rkvdpu_mpeg2_prepare_buf(struct mpp_session *session, void *regs)
 				      V4L2_CID_MPEG_VIDEO_MPEG2_SLICE_PARAMS);
 	picture = &params->picture;
 	sequence = &params->sequence;
-
-	quantization = rockchip_mpp_get_cur_ctrl(session,
-			V4L2_CID_MPEG_VIDEO_MPEG2_QUANTIZATION);
 
 	dst_buf = v4l2_m2m_next_dst_buf(session->fh.m2m_ctx);
 	cur_addr = vb2_dma_contig_plane_dma_addr(&dst_buf->vb2_buf, 0);
@@ -265,9 +272,6 @@ int rkvdpu_mpeg2_prepare_buf(struct mpp_session *session, void *regs)
 		p_regs->sw134.refer2_base = cur_addr >> 2;
 		p_regs->sw135.refer3_base = cur_addr >> 2;
 	}
-
-	mpeg2_dec_copy_qtable(session->qtable_vaddr, quantization);
-        p_regs->sw61.qtable_base = session->qtable_addr;
 
 	return 0;
 }

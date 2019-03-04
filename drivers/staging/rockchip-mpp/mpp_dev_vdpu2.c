@@ -147,6 +147,9 @@ static int rkvdpu_s_fmt_vid_out_mplane(struct file *filp, void *priv,
 	if (sizes >= SZ_16M)
 		return -EINVAL;
 
+	/* For those slice header data */
+	pix_mp->plane_fmt[pix_mp->num_planes - 1].sizeimage += SZ_1M;
+
 	session->fmt_out = *pix_mp;
 
 	/* Copy the pixel format information from OUTPUT to CAPUTRE */
@@ -261,9 +264,6 @@ static int rkvdpu_open(struct file *filp)
 		return error;
 	}
 
-	session->qtable_vaddr = dmam_alloc_coherent(mpp_dev->dev, 64 * 4,
-						    &session->qtable_addr,
-						    GFP_KERNEL);
 	filp->private_data = &session->fh;
 	pm_runtime_get_sync(mpp_dev->dev);
 
