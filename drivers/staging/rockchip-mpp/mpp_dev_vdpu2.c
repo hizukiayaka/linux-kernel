@@ -213,8 +213,13 @@ static int rkvdpu_s_fmt_vid_out_mplane(struct file *filp, void *priv,
 		sizes += pix_mp->plane_fmt[i].sizeimage;
 	}
 	/* strm_len is 24 bits */
-	if (sizes >= SZ_16M)
+	if (sizes >= SZ_16M - SZ_1M)
 		return -EINVAL;
+	if (pix_mp->num_planes < 1)
+		pix_mp->num_planes = 1;
+
+	/* For those slice header data */
+	pix_mp->plane_fmt[pix_mp->num_planes - 1].sizeimage += SZ_1M;
 
 	if (!pix_mp->num_planes)
 		pix_mp->num_planes = 1;
@@ -408,9 +413,6 @@ static int rkvdpu_open(struct file *filp)
 		return error;
 	}
 
-	session->qtable_vaddr = dmam_alloc_coherent(mpp_dev->dev, 64 * 4,
-						    &session->qtable_addr,
-						    GFP_KERNEL);
 	filp->private_data = &session->fh;
 	pm_runtime_get_sync(mpp_dev->dev);
 
