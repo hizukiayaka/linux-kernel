@@ -57,6 +57,9 @@
 #define		RKVDEC_CACHE_PERMIT_READ_ALLOCATE	BIT(1)
 #define		RKVDEC_CACHE_LINE_SIZE_64_BYTES		BIT(4)
 
+int rkvdec_avc_gen_reg(struct mpp_session *session, void *regs,
+			struct vb2_v4l2_buffer *src_buf);
+
 int rkvdec_hevc_gen_reg(struct mpp_session *session, void *regs,
 			struct vb2_v4l2_buffer *src_buf);
 

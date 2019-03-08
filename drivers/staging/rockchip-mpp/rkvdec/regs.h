@@ -283,11 +283,11 @@ struct rkvdec_regs {
 	union {
 		u32 sw_ref_valid;
 		struct {
-			u32 ref15_base:10;
-			u32 ref15_field:1;
-			u32 ref15_topfield_used:1;
-			u32 ref15_botfield_used:1;
-			u32 ref15_colmv_use_flag:1;
+			u32 ref_base:10;
+			u32 ref_field:1;
+			u32 ref_topfield_used:1;
+			u32 ref_botfield_used:1;
+			u32 ref_colmv_use_flag:1;
 			u32 reverse0:18;
 		} sw48_h264;
 
@@ -299,7 +299,7 @@ struct rkvdec_regs {
 
 	/* SWREG 49 - 63 */
 	union {
-		u32 sw_refframe_index[15];
+		u32 sw_refer15_29_poc[15];
 		struct {
 			struct {
 				u32 goldeny_virstride:20;
@@ -343,7 +343,8 @@ struct rkvdec_regs {
 	u32 sw71_perf_cnt2;
 	u32 sw72_h264_refer30_poc;
 	u32 sw73_h264_refer31_poc;
-	u32 sw74_h264_cur_poc1;
+	/* SWREG 74 h264_cur_poc1 */
+	u32 sw_cur_poc_b;
 	u32 sw75_errorinfo_base;
 
 	union {

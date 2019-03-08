@@ -244,9 +244,10 @@ static int rkvdec_s_fmt_vid_cap_mplane(struct file *filp, void *priv,
 		    pix_mp->plane_fmt[1].bytesperline * ALIGN(pix_mp->height,
 							      8);
 #else
+		/* TODO: HEVC only request the height is aligned with 8 */
 		pix_mp->plane_fmt[0].sizeimage =
 		    pix_mp->plane_fmt[0].bytesperline * ALIGN(pix_mp->height,
-							      8);
+							      16);
 		/* Additional space for motion vector */
 		pix_mp->plane_fmt[0].sizeimage *= 2;
 #endif
