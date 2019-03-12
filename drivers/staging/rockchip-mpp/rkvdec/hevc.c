@@ -25,6 +25,8 @@
 #include "hal.h"
 #include "regs.h"
 
+#include "hevc-data.h"
+
 static void init_hw_cfg(struct rkvdec_regs *p_regs)
 {
 	p_regs->sw_interrupt.dec_e = 1;
