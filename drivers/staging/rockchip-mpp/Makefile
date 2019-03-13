@@ -2,7 +2,7 @@
 rk-mpp-service-objs := mpp_service.o
 rk-mpp-device-objs := mpp_dev_common.o
 rk-mpp-vdec-objs := mpp_dev_rkvdec.o
-rk-mpp-vdec-objs += rkvdec/avc.o
+rk-mpp-vdec-objs += rkvdec/avc.o rkvdec/avc-data.o
 rk-mpp-vdec-objs += rkvdec/hevc.o rkvdec/hevc-data.o rkvdec/rbsp.o
 rk-mpp-vdpu1-objs := mpp_dev_vdpu1.o
 rk-mpp-vdpu2-objs := mpp_dev_vdpu2.o vdpu2/mpeg2.o
