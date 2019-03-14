@@ -495,6 +495,10 @@
 	status = "okay";
 };
 
+&uart2 {
+	status = "okay";
+};
+
 &usb20_otg {
 	dr_mode = "host";
 	status = "okay";
